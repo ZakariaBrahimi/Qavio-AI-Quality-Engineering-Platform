@@ -2,16 +2,11 @@ import type { TestRun } from '@qavio/types';
 import { Card, CardContent, CardHeader, StatusBadge } from '@qavio/ui';
 import Link from 'next/link';
 
+import { TEST_RUN_TYPE_LABELS } from '@/lib/project-constants';
+
 export interface TestRunCardProps {
   testRun: TestRun;
 }
-
-const TYPE_LABEL: Record<TestRun['type'], string> = {
-  functional: 'Functional',
-  visual: 'Visual',
-  responsive: 'Responsive',
-  security: 'Security',
-};
 
 export function TestRunCard({ testRun }: TestRunCardProps) {
   return (
@@ -22,7 +17,7 @@ export function TestRunCard({ testRun }: TestRunCardProps) {
             <p className="text-sm font-medium text-foreground">
               Run #{testRun.id.slice(0, 8)}
             </p>
-            <p className="text-xs text-muted-foreground">{TYPE_LABEL[testRun.type]} run</p>
+            <p className="text-xs text-muted-foreground">{TEST_RUN_TYPE_LABELS[testRun.type]} run</p>
           </div>
           <StatusBadge status={testRun.status} />
         </CardHeader>

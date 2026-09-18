@@ -1,13 +1,28 @@
+import type { Environment } from '@qavio/types';
 import { Button } from '@qavio/ui';
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { NewTestRunForm } from '@/components/test-runs/new-test-run-form';
+import { getEnvironments } from '@/lib/environments';
+import { getCurrentOrganization } from '@/lib/organizations';
+import { getProjects } from '@/lib/projects';
 
 export const metadata: Metadata = { title: 'New Test Run' };
 
-export default function NewTestRunPage() {
+export default async function NewTestRunPage() {
+  const organization = await getCurrentOrganization();
+  if (!organization) {
+    return null;
+  }
+
+  const projects = await getProjects(organization.organizationId);
+  const environmentsByProject = await Promise.all(
+    projects.map((project) => getEnvironments(organization.organizationId, project.id)),
+  );
+  const environments: Environment[] = environmentsByProject.flat();
+
   return (
     <div className="space-y-6">
       <div>
@@ -24,7 +39,7 @@ export default function NewTestRunPage() {
         </p>
       </div>
 
-      <NewTestRunForm />
+      <NewTestRunForm projects={projects} environments={environments} />
     </div>
   );
 }

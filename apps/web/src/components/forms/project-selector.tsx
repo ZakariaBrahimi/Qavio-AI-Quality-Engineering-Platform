@@ -12,12 +12,13 @@ export interface ProjectSelectorProps {
   value?: string;
   onValueChange?: (projectId: string) => void;
   disabled?: boolean;
+  id?: string;
 }
 
-export function ProjectSelector({ projects, value, onValueChange, disabled }: ProjectSelectorProps) {
+export function ProjectSelector({ projects, value, onValueChange, disabled, id }: ProjectSelectorProps) {
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled || projects.length === 0}>
-      <SelectTrigger>
+      <SelectTrigger id={id}>
         <SelectValue placeholder={projects.length === 0 ? 'No projects yet' : 'Select a project'} />
       </SelectTrigger>
       <SelectContent>

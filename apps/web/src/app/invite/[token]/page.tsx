@@ -44,7 +44,7 @@ export default async function InvitePage({ params }: { params: { token: string }
               been accepted.
             </p>
             <Button asChild className="mt-6 w-full">
-              <Link href="/overview">Go to dashboard</Link>
+              <Link href="/dashboard">Go to dashboard</Link>
             </Button>
           </>
         ) : invitation.status === 'revoked' ? (

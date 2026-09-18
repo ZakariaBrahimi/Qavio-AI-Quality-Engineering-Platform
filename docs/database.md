@@ -305,15 +305,25 @@ Every audited action shares one row shape via `log_audit_event()`:
   `organization_members` role changes, `credentials`
   insert/update/delete.
 - **Application code** (call `log_audit_event()` directly — see the
-  function's own doc comment in the migration): logins, invitations,
-  project creation, test run creation/cancellation (cancellation also has
-  a trigger as a backstop), issue status changes (also has a trigger),
-  integration connect/disconnect, AI fix approvals (also has a trigger).
+  function's own doc comment in the migration): logins, invitations
+  (`invitation_created`), member removal (`member_removed`), project
+  creation/archive/delete (`project_created`/`project_archived`/
+  `project_deleted`), environment creation (`environment_created`), test
+  run creation/cancellation (cancellation also has a trigger as a
+  backstop), issue status changes (also has a trigger), integration
+  connect/disconnect, AI fix approvals (also has a trigger).
 
 Logins specifically have no corresponding table row to hook a trigger off
 of — they're a Supabase Auth event, not a Postgres write in this schema —
 so they must go through a Supabase Auth Hook calling `log_audit_event()`,
 which is not implemented in this phase.
+
+`apps/web`'s dashboard reads this table for its "recent activity" feed
+(`getRecentActivity()` in `lib/activity.ts`), gated in the UI by a new
+`view_audit_log` RBAC permission (admin+, mirroring the `"admins can read
+audit logs"` policy above) — a lower role sees an explanatory note
+instead of a silently-empty list, since RLS would otherwise return zero
+rows either way and the two cases look identical without that gate.
 
 ## Local verification
 

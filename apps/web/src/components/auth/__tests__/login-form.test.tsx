@@ -45,7 +45,7 @@ describe('LoginForm', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it('navigates to /overview on success', async () => {
+  it('navigates to /dashboard on success', async () => {
     mockSignIn.mockResolvedValue({ ok: true, data: undefined });
     render(<LoginForm />);
 
@@ -54,7 +54,7 @@ describe('LoginForm', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/overview');
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
     });
   });
 });

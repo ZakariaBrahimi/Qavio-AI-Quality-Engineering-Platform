@@ -44,6 +44,15 @@ describe('hasPermission', () => {
       expect(hasPermission(role, 'view_results')).toBe(true);
     }
   });
+
+  it('gates view_audit_log at admin+, matching the "admins can read audit logs" RLS policy', () => {
+    for (const role of ['owner', 'admin'] as OrganizationRole[]) {
+      expect(hasPermission(role, 'view_audit_log')).toBe(true);
+    }
+    for (const role of ['qa', 'developer', 'viewer'] as OrganizationRole[]) {
+      expect(hasPermission(role, 'view_audit_log')).toBe(false);
+    }
+  });
 });
 
 describe('assignableRoles', () => {

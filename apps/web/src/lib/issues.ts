@@ -59,3 +59,103 @@ export async function getRecentIssues(
   if (error || !data) return [];
   return data.map(toIssue);
 }
+
+/**
+ * A single issue, scoped to the caller's organization — `null` for one
+ * that doesn't exist *or* belongs to a different organization, same
+ * "wrong id and someone else's data look identical" rule as
+ * `getProject`.
+ */
+export async function getIssue(organizationId: string, issueId: string): Promise<Issue | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('issues')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('id', issueId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return toIssue(data);
+}
+
+/** Every issue across the whole organization (every project), most recent first — for the Issues page. Real data only. */
+export async function getIssuesForOrg(organizationId: string, limit = 100): Promise<Issue[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('issues')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error || !data) return [];
+  return data.map(toIssue);
+}
+
+const UNRESOLVED_STATUSES: IssueStatus[] = ['open', 'in_progress', 'reopened'];
+
+export interface IssueCounts {
+  open: number;
+  critical: number;
+  unresolvedHigh: number;
+  resolved: number;
+  total: number;
+}
+
+const EMPTY_ISSUE_COUNTS: IssueCounts = { open: 0, critical: 0, unresolvedHigh: 0, resolved: 0, total: 0 };
+
+/**
+ * Accurate organization-wide issue counts for metric cards — not capped
+ * like `getIssuesForOrg`/`getRecentIssues`, so the number is right even
+ * once an organization has more issues than any list view shows.
+ */
+export async function getIssueCounts(organizationId: string): Promise<IssueCounts> {
+  const supabase = createClient();
+
+  const [openResult, criticalResult, highResult, resolvedResult, totalResult] = await Promise.all([
+    supabase
+      .from('issues')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .in('status', UNRESOLVED_STATUSES),
+    supabase
+      .from('issues')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .eq('severity', 'critical')
+      .in('status', UNRESOLVED_STATUSES),
+    supabase
+      .from('issues')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .eq('severity', 'high')
+      .in('status', UNRESOLVED_STATUSES),
+    supabase
+      .from('issues')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .eq('status', 'resolved'),
+    supabase.from('issues').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId),
+  ]);
+
+  if (
+    openResult.error ||
+    criticalResult.error ||
+    highResult.error ||
+    resolvedResult.error ||
+    totalResult.error
+  ) {
+    return EMPTY_ISSUE_COUNTS;
+  }
+
+  return {
+    open: openResult.count ?? 0,
+    critical: criticalResult.count ?? 0,
+    unresolvedHigh: highResult.count ?? 0,
+    resolved: resolvedResult.count ?? 0,
+    total: totalResult.count ?? 0,
+  };
+}

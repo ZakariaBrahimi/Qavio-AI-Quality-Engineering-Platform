@@ -53,7 +53,7 @@ export function OrganizationSwitcher({
         toast.error(result.error);
         return;
       }
-      router.push('/overview');
+      router.push('/dashboard');
       router.refresh();
     });
   }

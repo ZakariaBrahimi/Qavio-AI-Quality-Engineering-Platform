@@ -4,6 +4,7 @@ import { archiveProject, createProject, deleteProject, restoreProject, updatePro
 
 const mockGetCurrentOrganization = vi.hoisted(() => vi.fn());
 const mockGetUser = vi.hoisted(() => vi.fn());
+const mockRpc = vi.hoisted(() => vi.fn().mockResolvedValue({ data: null, error: null }));
 const mockFromResults = vi.hoisted(
   () => new Map<string, { data?: unknown; error?: unknown; count?: number }>(),
 );
@@ -35,6 +36,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     auth: { getUser: mockGetUser },
     from: (table: string) => chain(table, mockFromResults.get(table) ?? { data: null, error: null }),
+    rpc: mockRpc,
   }),
 }));
 
@@ -50,6 +52,7 @@ const viewerOrg = { ...ownerOrg, role: 'viewer' as const };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockRpc.mockResolvedValue({ data: null, error: null });
   mockFromResults.clear();
   mockEqCalls.length = 0;
   mockGetUser.mockResolvedValue({ data: { user: { id: 'actor-1' } } });

@@ -17,12 +17,12 @@ describe('middleware', () => {
   it('redirects an unauthenticated visitor away from a protected route, remembering where they were going', async () => {
     mockUpdateSession.mockResolvedValue({ response: NextResponse.next(), user: null });
 
-    const response = await middleware(request('/overview'));
+    const response = await middleware(request('/dashboard'));
 
     expect(response.status).toBe(307);
     const location = new URL(response.headers.get('location')!);
     expect(location.pathname).toBe('/login');
-    expect(location.searchParams.get('next')).toBe('/overview');
+    expect(location.searchParams.get('next')).toBe('/dashboard');
   });
 
   it('lets an authenticated visitor reach a protected route', async () => {
@@ -31,7 +31,7 @@ describe('middleware', () => {
       user: { id: 'user-1' },
     });
 
-    const response = await middleware(request('/overview'));
+    const response = await middleware(request('/dashboard'));
 
     expect(response.headers.get('location')).toBeNull();
   });
@@ -45,7 +45,7 @@ describe('middleware', () => {
     const response = await middleware(request('/login'));
 
     expect(response.status).toBe(307);
-    expect(new URL(response.headers.get('location')!).pathname).toBe('/overview');
+    expect(new URL(response.headers.get('location')!).pathname).toBe('/dashboard');
   });
 
   it('never redirects an unauthenticated visitor away from the login page itself', async () => {

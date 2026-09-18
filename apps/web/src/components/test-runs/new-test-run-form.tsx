@@ -1,5 +1,6 @@
 'use client';
 
+import type { Environment, Project } from '@qavio/types';
 import {
   AlertTriangle,
   Eye,
@@ -10,7 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import {
   Button,
@@ -78,17 +79,33 @@ const TEST_TYPE_LABEL: Record<TestType, string> = {
   custom: 'Custom',
 };
 
+export interface NewTestRunFormProps {
+  projects: Project[];
+  environments: Environment[];
+}
+
 /**
- * There is no project or environment backend wired up yet, so this form
- * is always empty and Start Test Run stays disabled — the wizard is real,
+ * The project/environment pickers are real (Phase 4 shipped both), but
+ * there is still no execution worker to hand a run to — Start Test Run
+ * stays disabled regardless of what's selected. The wizard is real,
  * queueing a run is not, until workers/web + the queue are connected.
  */
-export function NewTestRunForm() {
+export function NewTestRunForm({ projects, environments }: NewTestRunFormProps) {
   const [testType, setTestType] = useState<TestType>('full');
   const [coverage, setCoverage] = useState<Coverage>('smart');
   const [instructions, setInstructions] = useState('');
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [environmentId, setEnvironmentId] = useState<string | undefined>(undefined);
 
-  const canSubmit = false; // No project exists to run against yet.
+  const environmentsForProject = useMemo(
+    () => environments.filter((environment) => environment.projectId === projectId),
+    [environments, projectId],
+  );
+
+  const selectedProject = projects.find((project) => project.id === projectId);
+  const selectedEnvironment = environmentsForProject.find((environment) => environment.id === environmentId);
+
+  const canSubmit = false; // No execution worker to hand this run to yet.
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -99,21 +116,37 @@ export function NewTestRunForm() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Project</Label>
-              <ProjectSelector projects={[]} />
+              <Label htmlFor="test-run-project">Project</Label>
+              <ProjectSelector
+                id="test-run-project"
+                projects={projects}
+                value={projectId}
+                onValueChange={(value) => {
+                  setProjectId(value);
+                  setEnvironmentId(undefined);
+                }}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Environment</Label>
-              <EnvironmentSelector environments={[]} />
+              <Label htmlFor="test-run-environment">Environment</Label>
+              <EnvironmentSelector
+                id="test-run-environment"
+                environments={environmentsForProject}
+                value={environmentId}
+                onValueChange={setEnvironmentId}
+                disabled={!projectId}
+              />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            You need at least one project with an environment before you can start a run.{' '}
-            <Link href="/projects" className="font-medium text-primary hover:underline">
-              Create a project
-            </Link>
-            .
-          </p>
+          {projects.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              You need at least one project with an environment before you can start a run.{' '}
+              <Link href="/projects" className="font-medium text-primary hover:underline">
+                Create a project
+              </Link>
+              .
+            </p>
+          ) : null}
         </section>
 
         <section className="space-y-4 rounded-lg border p-5">
@@ -137,9 +170,15 @@ export function NewTestRunForm() {
           <h2 className="text-sm font-semibold text-foreground">3. Configure Test Settings</h2>
           <div className="space-y-1.5">
             <Label htmlFor="app-url">Application URL</Label>
-            <Input id="app-url" placeholder="https://staging.your-app.com" disabled />
+            <Input
+              id="app-url"
+              placeholder="https://staging.your-app.com"
+              value={selectedEnvironment?.baseUrl ?? ''}
+              disabled
+              readOnly
+            />
             <p className="text-xs text-muted-foreground">
-              Set once your project has an environment configured.
+              {selectedEnvironment ? "From the selected environment's base URL." : 'Select an environment above to set this.'}
             </p>
           </div>
 
@@ -210,7 +249,7 @@ export function NewTestRunForm() {
         <div className="flex items-center justify-between rounded-lg border bg-muted/40 p-4">
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <AlertTriangle className="h-4 w-4" />
-            Connect a project to start a test run.
+            Queueing test runs isn&apos;t connected yet — this ships once the execution worker does.
           </p>
           <Button
             disabled={!canSubmit}
@@ -226,8 +265,8 @@ export function NewTestRunForm() {
           <h3 className="mb-3 text-sm font-semibold text-foreground">Test Run Summary</h3>
           <PropertyList
             items={[
-              { label: 'Project', value: 'Not selected' },
-              { label: 'Environment', value: 'Not selected' },
+              { label: 'Project', value: selectedProject?.name ?? 'Not selected' },
+              { label: 'Environment', value: selectedEnvironment?.name ?? 'Not selected' },
               { label: 'Test Type', value: TEST_TYPE_LABEL[testType] },
               { label: 'Coverage', value: coverage === 'smart' ? 'Smart' : coverage === 'pages' ? 'Pages' : 'Custom' },
             ]}

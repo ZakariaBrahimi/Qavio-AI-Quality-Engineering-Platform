@@ -40,7 +40,7 @@ export function CreateOrganizationForm({ onSuccess }: CreateOrganizationFormProp
       return;
     }
     onSuccess?.();
-    router.push('/overview');
+    router.push('/dashboard');
     router.refresh();
   });
 

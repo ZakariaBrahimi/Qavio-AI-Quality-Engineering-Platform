@@ -1,4 +1,4 @@
-import type { EnvironmentKind, ProjectPlatform } from '@qavio/types';
+import type { EnvironmentKind, ProjectPlatform, TestRunType } from '@qavio/types';
 
 /**
  * Every platform the schema models (`project_platform` in
@@ -31,4 +31,12 @@ export const ENVIRONMENT_KIND_LABELS: Record<EnvironmentKind, string> = {
   staging: 'Staging',
   preview: 'Preview',
   local: 'Local',
+};
+
+/** Only `functional` has a real worker in this phase — see `TestRunType`. */
+export const TEST_RUN_TYPE_LABELS: Record<TestRunType, string> = {
+  functional: 'Functional',
+  visual: 'Visual',
+  responsive: 'Responsive',
+  security: 'Security',
 };

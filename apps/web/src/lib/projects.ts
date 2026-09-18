@@ -81,3 +81,33 @@ export async function getProject(organizationId: string, projectId: string): Pro
   if (error || !data) return null;
   return toProject(data);
 }
+
+/**
+ * Project id → name, for tables (issues, test runs) that hang off a
+ * project but only ever need its name to display, not the full row.
+ * Scoped to the caller's organization the same way as everything else
+ * here — an id belonging to another org simply won't resolve, matching
+ * `getProject`'s "wrong id and someone else's project look the same"
+ * rule.
+ */
+export async function getProjectNameMap(
+  organizationId: string,
+  projectIds: string[],
+): Promise<Map<string, string>> {
+  const uniqueIds = [...new Set(projectIds)];
+  const map = new Map<string, string>();
+  if (uniqueIds.length === 0) return map;
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, name')
+    .eq('organization_id', organizationId)
+    .in('id', uniqueIds);
+
+  if (error || !data) return map;
+  for (const row of data) {
+    map.set(row.id, row.name);
+  }
+  return map;
+}

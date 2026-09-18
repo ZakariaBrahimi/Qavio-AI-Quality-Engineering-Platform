@@ -97,6 +97,14 @@ export async function createEnvironment(input: {
 
   if (insertError || !environment) return fail(mapDbError(insertError));
 
+  await supabase.rpc('log_audit_event', {
+    p_organization_id: organization.organizationId,
+    p_action: 'environment_created',
+    p_target_type: 'environment',
+    p_target_id: environment.id,
+    p_metadata: { name: parsed.data.name, project_id: input.projectId },
+  });
+
   return ok({ environmentId: environment.id });
 }
 

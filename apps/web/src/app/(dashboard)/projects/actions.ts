@@ -74,6 +74,14 @@ export async function createProject(input: {
 
   if (insertError || !project) return fail(mapDbError(insertError));
 
+  await supabase.rpc('log_audit_event', {
+    p_organization_id: organization.organizationId,
+    p_action: 'project_created',
+    p_target_type: 'project',
+    p_target_id: project.id,
+    p_metadata: { name: parsed.data.name, platform: parsed.data.platform },
+  });
+
   return ok({ projectId: project.id });
 }
 
@@ -116,6 +124,15 @@ export async function archiveProject(input: { projectId: string }): Promise<Acti
     .eq('organization_id', organization.organizationId);
 
   if (updateError) return fail(mapDbError(updateError));
+
+  await supabase.rpc('log_audit_event', {
+    p_organization_id: organization.organizationId,
+    p_action: 'project_archived',
+    p_target_type: 'project',
+    p_target_id: input.projectId,
+    p_metadata: {},
+  });
+
   return ok(undefined);
 }
 
@@ -150,5 +167,14 @@ export async function deleteProject(input: { projectId: string }): Promise<Actio
     .eq('organization_id', organization.organizationId);
 
   if (deleteError) return fail(mapDbError(deleteError));
+
+  await supabase.rpc('log_audit_event', {
+    p_organization_id: organization.organizationId,
+    p_action: 'project_deleted',
+    p_target_type: 'project',
+    p_target_id: input.projectId,
+    p_metadata: {},
+  });
+
   return ok(undefined);
 }

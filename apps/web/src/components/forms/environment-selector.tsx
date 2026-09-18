@@ -12,6 +12,7 @@ export interface EnvironmentSelectorProps {
   value?: string;
   onValueChange?: (environmentId: string) => void;
   disabled?: boolean;
+  id?: string;
 }
 
 export function EnvironmentSelector({
@@ -19,6 +20,7 @@ export function EnvironmentSelector({
   value,
   onValueChange,
   disabled,
+  id,
 }: EnvironmentSelectorProps) {
   return (
     <Select
@@ -26,7 +28,7 @@ export function EnvironmentSelector({
       onValueChange={onValueChange}
       disabled={disabled || environments.length === 0}
     >
-      <SelectTrigger>
+      <SelectTrigger id={id}>
         <SelectValue
           placeholder={environments.length === 0 ? 'No environments yet' : 'Select an environment'}
         />

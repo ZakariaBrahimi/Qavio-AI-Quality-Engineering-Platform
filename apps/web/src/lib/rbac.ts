@@ -49,7 +49,9 @@ export type Permission =
   /** View test results and work with issues (comment, change status). */
   | 'manage_issues'
   /** Read-only access to results, issues, and reports. */
-  | 'view_results';
+  | 'view_results'
+  /** Read the organization's audit log (mirrors the "admins can read audit logs" RLS policy). */
+  | 'view_audit_log';
 
 const RANK_GATED: Record<Exclude<Permission, 'manage_test_workflows'>, number> = {
   manage_organization: ROLE_RANK.admin,
@@ -60,6 +62,7 @@ const RANK_GATED: Record<Exclude<Permission, 'manage_test_workflows'>, number> =
   delete_environment: ROLE_RANK.admin,
   manage_issues: ROLE_RANK.developer,
   view_results: ROLE_RANK.viewer,
+  view_audit_log: ROLE_RANK.admin,
 };
 
 /**

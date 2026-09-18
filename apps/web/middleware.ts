@@ -16,12 +16,12 @@ function isPublicAuthPath(pathname: string) {
  * - /reset-password — reached via the recovery email link, which by
  *   then has *created* a session (the recovery session). Treating it as
  *   a "public" auth page would bounce that signed-in recovery session
- *   straight to /overview before the user ever sets a new password.
+ *   straight to /dashboard before the user ever sets a new password.
  *
  * /onboarding is deliberately NOT here — it still requires a session
  * (the first branch below), it's just never in PUBLIC_PATHS, so a
  * signed-in user landing there (exactly where someone with zero
- * organizations belongs) is never bounced to /overview by the second
+ * organizations belongs) is never bounced to /dashboard by the second
  * branch.
  */
 function isAlwaysAllowedPath(pathname: string) {
@@ -41,7 +41,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && isPublicAuthPath(pathname)) {
-    return NextResponse.redirect(new URL('/overview', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return response;

@@ -34,7 +34,7 @@ export function LoginForm() {
       return;
     }
     const next = searchParams.get('next');
-    router.push(next && next.startsWith('/') ? next : '/overview');
+    router.push(next && next.startsWith('/') ? next : '/dashboard');
   });
 
   return (

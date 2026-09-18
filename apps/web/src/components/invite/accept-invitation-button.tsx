@@ -17,7 +17,7 @@ export function AcceptInvitationButton({ token }: { token: string }) {
         toast.error(result.error);
         return;
       }
-      router.push('/overview');
+      router.push('/dashboard');
       router.refresh();
     });
   }

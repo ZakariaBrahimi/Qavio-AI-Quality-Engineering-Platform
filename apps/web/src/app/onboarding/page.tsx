@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: 'Create your organization' };
 export default async function OnboardingPage() {
   const organizations = await getUserOrganizations();
   if (organizations.length > 0) {
-    redirect('/overview');
+    redirect('/dashboard');
   }
 
   return (
