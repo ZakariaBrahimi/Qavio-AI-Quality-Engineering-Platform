@@ -39,3 +39,25 @@ configured yet (see `apps/web/src/lib/env.ts` for the pattern).
 - CI sets placeholder values for the `NEXT_PUBLIC_*` variables (see
   `.github/workflows/ci.yml`) purely so `pnpm build` succeeds without real
   Supabase credentials. It never sets server secrets.
+
+## The real Phase 2 project
+
+A real Supabase project exists for this phase (ref `bkxkwwocpampseojowxs`,
+`eu-west-1`), with every migration in `supabase/migrations` applied and
+the same `[DEV]`-labeled seed data as `supabase/seed/seed.sql` (dev login:
+`dev@qavio.local` / `devpassword123`). `.env.example` is deliberately left
+with generic placeholders rather than this project's values, so a fresh
+clone doesn't silently point at somebody else's dev project — copy the
+values below into your own `.env.local` if you want to point at it:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://bkxkwwocpampseojowxs.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_aM8ilHz6qnjXOKEggAEblw_fspTaoSE
+```
+
+Both are safe to expose to the browser (protected by RLS), which is why
+they're fine to share this way. `SUPABASE_SERVICE_ROLE_KEY` and
+`SUPABASE_DB_URL` are not — they were never generated or stored in this
+repository or its chat history; get them from the
+[Supabase dashboard](https://supabase.com/dashboard/project/bkxkwwocpampseojowxs/settings/api)
+if you need them, and never commit them.

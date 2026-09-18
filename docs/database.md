@@ -41,6 +41,10 @@ table.
 | `20250201000500_ai_and_fixes.sql` | `ai_analyses`, `fix_suggestions`, `fix_attempts` |
 | `20250201000600_notifications_usage_billing_audit.sql` | `notifications`, `usage_events`, `subscriptions`, `audit_logs`, `log_audit_event()`, security-critical triggers |
 | `20250201000700_storage.sql` | the `artifacts` Storage bucket and its RLS policy |
+| `20250201000800_lock_down_function_privileges.sql` | closes a real-project-only privilege gap: Supabase grants `EXECUTE` to `anon`/`authenticated` on every new function independent of `PUBLIC`, so `get_credential_secret()`/`get_integration_access_token()` were reachable by both despite the `REVOKE ALL FROM PUBLIC` in their own migrations; also pins `search_path` on two functions that didn't set one |
+| `20250201000900_revoke_public_execute_on_triggers.sql` | follow-up: the trigger-only audit functions and `handle_new_user()`/`set_updated_at()` still had the default `PUBLIC` grant itself (not just the per-role one), so revoking from `anon`/`authenticated` alone hadn't closed them |
+| `20250201001000_rls_performance.sql` | wraps `auth.uid()` in RLS policies as `(select auth.uid())` and merges the two `profiles` SELECT policies into one, per the performance advisor |
+| `20250201001100_missing_fk_indexes.sql` | covering indexes for the secondary (non-`organization_id`) foreign keys the performance advisor flagged |
 
 Deliberately not implemented yet (per the current product phase): devices,
 device_runs, visual_baselines, visual_comparisons, security_scans,
@@ -213,27 +217,45 @@ which is not implemented in this phase.
 
 ## Local verification
 
-This phase's migrations were verified against a real local PostgreSQL 16
-instance (not Supabase's own local stack, which needs Docker): every
-migration applies cleanly in order, the seed data loads, and the RLS/
-constraint scenarios in the previous sections all pass. `auth`, `vault`,
-and `storage` were stubbed locally to match Supabase's real schemas
-closely enough to exercise `auth.uid()`, `auth.users`,
+This phase's migrations were first verified against a real local
+PostgreSQL 16 instance (not Supabase's own local stack, which needs
+Docker): every migration applies cleanly in order, the seed data loads,
+and the RLS/constraint scenarios in the previous sections all pass.
+`auth`, `vault`, and `storage` were stubbed locally to match Supabase's
+real schemas closely enough to exercise `auth.uid()`, `auth.users`,
 `vault.create_secret()`/`vault.decrypted_secrets`, and
 `storage.objects`/`storage.foldername()` — the stub is not part of the
-committed migrations. Encryption itself (Vault's actual at-rest crypto)
-was not exercised locally, since the stub doesn't encrypt; that only runs
-for real on Supabase's own Postgres image, which ships `pgsodium`/Vault.
+committed migrations.
+
+## Real project
+
+All 12 migrations are also applied to a real, hosted Supabase project
+(ref `bkxkwwocpampseojowxs`, `eu-west-1`, Postgres 17) — see
+`docs/environment-variables.md` for its URL/anon key and the seeded dev
+login. This is what surfaced the four follow-up migrations above:
+`supabase_advisors` (security + performance) only run against a real
+project, and the local stub's `auth`/`vault` schemas turned out to be
+close enough to exercise RLS logic but not close enough to reproduce
+Supabase's own default grants — the exact gap
+`20250201000800_lock_down_function_privileges.sql` and
+`20250201000900_revoke_public_execute_on_triggers.sql` closed. Both
+advisors are clean now except `rls_enabled_no_policy` on
+`credential_secrets`/`integration_account_secrets` (INFO, intentional —
+see "Credentials & secrets" above) and `unused_index` (INFO, expected on
+a database with no real traffic yet). Encryption itself (Vault's actual
+at-rest crypto) now runs for real, since this project ships
+`pgsodium`/Vault — the local stub never encrypted anything.
 
 ## Type generation
 
-`packages/database/src/generated.ts` is hand-authored to mirror what
-`supabase gen types typescript` would produce, since this repository
-isn't linked to a live Supabase project yet. Once it is, regenerate with:
+`packages/database/src/generated.ts` is generated from the real project
+via:
 
 ```bash
 pnpm --filter @qavio/database db:generate-types
 ```
+
+Re-run it after any new migration and commit the result.
 
 `packages/types` mirrors the same schema in camelCase, domain-shaped
 interfaces (`Organization`, `Issue`, `Credential`, …) for application
