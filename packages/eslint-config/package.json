@@ -1,0 +1,23 @@
+{
+  "name": "@qavio/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared ESLint shareable configs for Qavio (base, node, react-library, next). A dedicated package so its name satisfies ESLint's \"eslint-config\" scoped-package naming convention.",
+  "main": "./base.cjs",
+  "files": [
+    "*.cjs"
+  ],
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint-config-next": "14.2.15",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.30.0",
+    "eslint-plugin-react": "^7.36.1",
+    "eslint-plugin-react-hooks": "^4.6.2"
+  },
+  "peerDependencies": {
+    "eslint": "^8.57.0"
+  }
+}

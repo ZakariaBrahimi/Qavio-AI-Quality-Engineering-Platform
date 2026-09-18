@@ -1,0 +1,4 @@
+{
+  "extends": "@qavio/config/tsconfig/react-library.json",
+  "include": ["src", "vitest.setup.ts"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "@qavio/worker-visual",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Execution-plane worker for Visual QA (screenshot diffing). Not implemented in Phase 1."
+}

@@ -1,0 +1,6 @@
+{
+  "name": "@qavio/worker-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Execution-plane worker for AI failure analysis and fix suggestion. Not implemented in Phase 1."
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@qavio/worker-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Execution plane worker for Web Functional QA — consumes test-run jobs from BullMQ and runs them with Playwright.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@qavio/config": "workspace:*",
+    "@qavio/types": "workspace:*",
+    "bullmq": "^5.13.2",
+    "playwright": "1.56.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@qavio/eslint-config": "workspace:*",
+    "@qavio/testing": "workspace:*",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}

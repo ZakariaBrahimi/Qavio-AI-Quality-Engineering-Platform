@@ -1,0 +1,6 @@
+{
+  "name": "@qavio/worker-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Execution-plane worker for mobile application testing. Not implemented in Phase 1."
+}

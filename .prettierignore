@@ -1,0 +1,7 @@
+.next/
+dist/
+build/
+coverage/
+.turbo/
+pnpm-lock.yaml
+supabase/.temp/

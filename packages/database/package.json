@@ -1,0 +1,26 @@
+{
+  "name": "@qavio/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Supabase client factories and generated database types for Qavio.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate-types": "supabase gen types typescript --local > src/generated.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.1",
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "@qavio/config": "workspace:*",
+    "@qavio/eslint-config": "workspace:*",
+    "@qavio/testing": "workspace:*",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}

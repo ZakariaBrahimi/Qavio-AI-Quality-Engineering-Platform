@@ -1,0 +1,12 @@
+import react from '@vitejs/plugin-react';
+import { mergeConfig } from 'vitest/config';
+
+import { baseVitestConfig } from '@qavio/testing';
+
+export default mergeConfig(baseVitestConfig, {
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
+  },
+});
