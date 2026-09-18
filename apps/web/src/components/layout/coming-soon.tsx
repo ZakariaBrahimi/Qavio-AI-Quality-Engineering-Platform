@@ -1,6 +1,5 @@
-import { Construction } from 'lucide-react';
-
 import { EmptyState } from '@qavio/ui';
+import { Construction } from 'lucide-react';
 
 export interface ComingSoonProps {
   title: string;

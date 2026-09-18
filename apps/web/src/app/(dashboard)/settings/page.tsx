@@ -1,4 +1,4 @@
-import { ComingSoon } from '@/components/shell/coming-soon';
+import { ComingSoon } from '@/components/layout/coming-soon';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Settings' };

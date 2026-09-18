@@ -7,7 +7,16 @@ import { cn } from '../lib/cn';
  * union (rather than importing @qavio/types) so this package has no
  * dependency on domain-specific packages.
  */
-export type Status = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled' | 'error' | 'skipped';
+export type Status =
+  | 'queued'
+  | 'running'
+  | 'passed'
+  | 'failed'
+  | 'cancelled'
+  | 'error'
+  | 'skipped'
+  | 'timed_out'
+  | 'blocked';
 
 const STATUS_CONFIG: Record<
   Status,
@@ -20,6 +29,8 @@ const STATUS_CONFIG: Record<
   cancelled: { label: 'Cancelled', icon: MinusCircle, className: 'bg-muted text-muted-foreground' },
   error: { label: 'Error', icon: XCircle, className: 'bg-destructive/10 text-destructive' },
   skipped: { label: 'Skipped', icon: MinusCircle, className: 'bg-muted text-muted-foreground' },
+  timed_out: { label: 'Timed Out', icon: Clock, className: 'bg-warning/10 text-warning' },
+  blocked: { label: 'Blocked', icon: MinusCircle, className: 'bg-warning/10 text-warning' },
 };
 
 export interface StatusBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {

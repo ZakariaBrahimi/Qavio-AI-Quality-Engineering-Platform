@@ -43,7 +43,39 @@
     --input: 214 32% 91%;
     --ring: 217 91% 60%;
 
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
     --radius: 0.5rem;
+
+    /*
+     * The app sidebar is always the dark navy surface from the Qavio
+     * designs, independent of the light/dark theme toggle — it never
+     * switches to a light background.
+     */
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 213 31% 91%;
+    --sidebar-muted-foreground: 215 20% 65%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-ring: 217 91% 65%;
+
+    /* Severity scale for bugs/issues — distinct from generic status colors. */
+    --severity-critical: 0 72% 51%;
+    --severity-critical-foreground: 0 0% 100%;
+    --severity-high: 25 95% 53%;
+    --severity-high-foreground: 0 0% 100%;
+    --severity-medium: 38 92% 50%;
+    --severity-medium-foreground: 222 47% 11%;
+    --severity-low: 217 33% 58%;
+    --severity-low-foreground: 0 0% 100%;
+
+    /* QA test-type accents, used for icon chips and type badges. */
+    --type-functional: 217 91% 60%;
+    --type-visual: 262 83% 58%;
+    --type-responsive: 173 58% 39%;
+    --type-security: 25 95% 53%;
   }
 
   :root[data-theme='dark'] {
