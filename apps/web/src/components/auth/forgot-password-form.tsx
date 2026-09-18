@@ -1,25 +1,33 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Input, Label } from '@qavio/ui';
+import { Alert, AlertDescription, Button, Input, Label } from '@qavio/ui';
+import { AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { requestPasswordReset } from '@/app/(auth)/actions';
 import { forgotPasswordSchema, type ForgotPasswordValues } from '@/lib/auth-schemas';
 
 export function ForgotPasswordForm() {
   const router = useRouter();
+  const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ForgotPasswordValues>({ resolver: zodResolver(forgotPasswordSchema) });
 
-  const onSubmit = handleSubmit(async () => {
-    // No email backend yet — route to the real "Check your email" state
-    // instead of pretending an email was sent.
-    router.push('/check-email');
+  const onSubmit = handleSubmit(async (values) => {
+    setFormError(null);
+    const result = await requestPasswordReset(values);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+    router.push(`/check-email?type=recovery&email=${encodeURIComponent(values.email)}`);
   });
 
   return (
@@ -31,6 +39,13 @@ export function ForgotPasswordForm() {
           password.
         </p>
       </div>
+
+      {formError ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="space-y-1.5">
         <Label htmlFor="email">Email address</Label>
@@ -46,7 +61,7 @@ export function ForgotPasswordForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        Send reset link
+        {isSubmitting ? 'Sending…' : 'Send reset link'}
       </Button>
 
       <p className="text-center text-sm">

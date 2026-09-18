@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout';
 import { SignupForm } from '@/components/auth/signup-form';
@@ -11,7 +12,9 @@ export default function SignupPage() {
       headline="Start your free trial"
       subheadline="Create your account and get started in minutes. No credit card required."
     >
-      <SignupForm />
+      <Suspense>
+        <SignupForm />
+      </Suspense>
     </AuthSplitLayout>
   );
 }

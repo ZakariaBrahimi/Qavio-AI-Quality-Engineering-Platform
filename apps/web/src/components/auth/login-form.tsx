@@ -1,22 +1,40 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Checkbox, Input, Label, toast } from '@qavio/ui';
+import { Alert, AlertDescription, Button, Input, Label } from '@qavio/ui';
+import { AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { signIn } from '@/app/(auth)/actions';
 import { loginSchema, type LoginValues } from '@/lib/auth-schemas';
 
+const LINK_EXPIRED_MESSAGE = 'That link has expired or was already used. Please try again.';
+
 export function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [formError, setFormError] = useState<string | null>(
+    searchParams.get('error') === 'link_expired' ? LINK_EXPIRED_MESSAGE : null,
+  );
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
 
-  const onSubmit = handleSubmit(async () => {
-    // Authentication isn't wired up to Supabase yet — see docs/architecture.md.
-    toast.info('Sign in is not connected yet. This form validates, but does not authenticate.');
+  const onSubmit = handleSubmit(async (values) => {
+    setFormError(null);
+    const result = await signIn(values);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+    const next = searchParams.get('next');
+    router.push(next && next.startsWith('/') ? next : '/overview');
   });
 
   return (
@@ -27,6 +45,13 @@ export function LoginForm() {
           Sign in to your account to continue.
         </p>
       </div>
+
+      {formError ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="space-y-1.5">
         <Label htmlFor="email">Email address</Label>
@@ -69,15 +94,8 @@ export function LoginForm() {
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox id="remember-me" />
-        <Label htmlFor="remember-me" className="text-sm font-normal text-muted-foreground">
-          Remember me
-        </Label>
-      </div>
-
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        Sign in
+        {isSubmitting ? 'Signing in…' : 'Sign in'}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">

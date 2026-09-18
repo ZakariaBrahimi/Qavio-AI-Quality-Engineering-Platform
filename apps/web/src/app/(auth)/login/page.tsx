@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout';
 import { LoginForm } from '@/components/auth/login-form';
@@ -11,7 +12,9 @@ export default function LoginPage() {
       headline="Better QA. Faster releases."
       subheadline="Automate testing, find bugs, and ship with confidence."
     >
-      <LoginForm />
+      <Suspense>
+        <LoginForm />
+      </Suspense>
     </AuthSplitLayout>
   );
 }

@@ -1,6 +1,7 @@
 export * from './common';
 export * from './profile';
 export * from './organization';
+export * from './invitation';
 export * from './project';
 export * from './environment';
 export * from './test-suite';

@@ -1,20 +1,32 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Input, Label, toast } from '@qavio/ui';
+import { Alert, AlertDescription, Button, Input, Label } from '@qavio/ui';
+import { AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { updatePassword } from '@/app/(auth)/actions';
 import { resetPasswordSchema, type ResetPasswordValues } from '@/lib/auth-schemas';
 
 export function ResetPasswordForm() {
+  const router = useRouter();
+  const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ResetPasswordValues>({ resolver: zodResolver(resetPasswordSchema) });
 
-  const onSubmit = handleSubmit(async () => {
-    toast.info('Password reset is not connected yet. This form validates, but does not update anything.');
+  const onSubmit = handleSubmit(async (values) => {
+    setFormError(null);
+    const result = await updatePassword(values);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+    router.push('/overview');
   });
 
   return (
@@ -25,6 +37,13 @@ export function ResetPasswordForm() {
           Your new password must be different from your previous password.
         </p>
       </div>
+
+      {formError ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="space-y-1.5">
         <Label htmlFor="password">New password</Label>
@@ -55,7 +74,7 @@ export function ResetPasswordForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        Reset password
+        {isSubmitting ? 'Resetting…' : 'Reset password'}
       </Button>
     </form>
   );

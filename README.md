@@ -18,15 +18,22 @@ And the rule behind every architectural decision:
 
 > Deterministic tools execute tests. AI reasons about the results.
 
-## Phase 1 — this repository, today
+## This repository, today
 
-This is the **foundation phase**: a monorepo, a design system, an
-application shell, a database schema, a working Playwright-backed worker,
-and the tooling (lint/typecheck/test/build/CI) to keep all of it honest.
-The first real product surface — **Web Functional QA** — is scaffolded but
-not yet wired end-to-end; routes that aren't implemented are clearly
-marked "coming soon" rather than faked. See `docs/architecture.md` for the
-full picture and what's deliberately out of scope.
+Foundation (Phase 1): a monorepo, a design system, an application shell,
+a working Playwright-backed worker, and the tooling
+(lint/typecheck/test/build/CI) to keep all of it honest. Database (Phase
+2): the full multi-tenant Postgres schema and RLS policies, applied to a
+real Supabase project. Authentication (Phase 3): real Supabase Auth,
+session management, the signup → create-organization flow, an
+organization switcher, centralized RBAC, and team invitations — see
+`docs/authentication.md`.
+
+The first real product surface — **Web Functional QA** (test
+suites/runs/results) — is scaffolded but not yet wired end-to-end; routes
+that aren't implemented are clearly marked "coming soon" rather than
+faked. See `docs/architecture.md` for the full picture and what's
+deliberately out of scope.
 
 ## Stack
 
@@ -67,6 +74,8 @@ Details, including running Supabase and Redis locally: `docs/setup.md`.
   execution plane, repository structure, future worker architecture
 - [`docs/database.md`](docs/database.md) — schema, multi-tenant model,
   roles, RLS, credentials/secrets, audit logging
+- [`docs/authentication.md`](docs/authentication.md) — Supabase Auth,
+  sessions, signup/onboarding, organization switching, RBAC, invitations
 - [`docs/setup.md`](docs/setup.md) — local development setup
 - [`docs/environment-variables.md`](docs/environment-variables.md) — every
   variable, who consumes it, and why

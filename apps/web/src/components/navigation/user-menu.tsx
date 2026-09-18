@@ -1,8 +1,6 @@
 'use client';
 
-import { LogOut, Settings, User as UserIcon } from 'lucide-react';
-import Link from 'next/link';
-
+import type { OrganizationRole } from '@qavio/types';
 import {
   Button,
   DropdownMenu,
@@ -10,14 +8,26 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  toast,
 } from '@qavio/ui';
+import { LogOut, Settings, User as UserIcon } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
+
+import { signOut } from '@/app/(auth)/actions';
+import { ROLE_LABELS } from '@/lib/rbac';
 
 export interface UserMenuProps {
   /** `null` when no one is signed in — renders a Sign in link instead. */
-  user: { name: string; email: string; role: string } | null;
+  user: { name: string; email: string } | null;
+  role?: OrganizationRole;
 }
 
-export function UserMenu({ user }: UserMenuProps) {
+export function UserMenu({ user, role }: UserMenuProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
   if (!user) {
     return (
       <Button asChild size="sm" variant="outline">
@@ -33,19 +43,34 @@ export function UserMenu({ user }: UserMenuProps) {
     .join('')
     .toUpperCase();
 
+  function handleSignOut() {
+    startTransition(async () => {
+      const result = await signOut();
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      router.push('/login');
+      router.refresh();
+    });
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-md py-1 pl-1 pr-2 text-left hover:bg-accent"
+          disabled={isPending}
+          className="flex items-center gap-2 rounded-md py-1 pl-1 pr-2 text-left hover:bg-accent disabled:opacity-60"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
             {initials}
           </span>
           <span className="hidden text-sm sm:block">
             <span className="block font-medium leading-tight">{user.name}</span>
-            <span className="block text-xs leading-tight text-muted-foreground">{user.role}</span>
+            <span className="block text-xs leading-tight text-muted-foreground">
+              {role ? ROLE_LABELS[role] : user.email}
+            </span>
           </span>
         </button>
       </DropdownMenuTrigger>
@@ -63,11 +88,9 @@ export function UserMenu({ user }: UserMenuProps) {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/login" className="flex items-center gap-2">
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </Link>
+        <DropdownMenuItem onSelect={handleSignOut} className="flex items-center gap-2">
+          <LogOut className="h-4 w-4" />
+          Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

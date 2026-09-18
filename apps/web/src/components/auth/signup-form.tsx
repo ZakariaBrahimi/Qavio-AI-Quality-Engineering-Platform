@@ -1,21 +1,39 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Input, Label, toast } from '@qavio/ui';
+import { Alert, AlertDescription, Button, Input, Label } from '@qavio/ui';
+import { AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { signUp } from '@/app/(auth)/actions';
 import { signupSchema, type SignupValues } from '@/lib/auth-schemas';
 
 export function SignupForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [formError, setFormError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<SignupValues>({ resolver: zodResolver(signupSchema) });
+  } = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { email: searchParams.get('email') ?? '' },
+  });
 
-  const onSubmit = handleSubmit(async () => {
-    toast.info('Sign up is not connected yet. This form validates, but does not create an account.');
+  const onSubmit = handleSubmit(async (values) => {
+    setFormError(null);
+    const next = searchParams.get('next');
+    const result = await signUp(values, next && next.startsWith('/') ? next : undefined);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+    router.push(`/check-email?type=signup&email=${encodeURIComponent(values.email)}`);
   });
 
   return (
@@ -24,6 +42,13 @@ export function SignupForm() {
         <h2 className="text-2xl font-semibold tracking-tight">Create your account</h2>
         <p className="mt-1 text-sm text-muted-foreground">Fill in your details to get started.</p>
       </div>
+
+      {formError ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="space-y-1.5">
         <Label htmlFor="fullName">Full name</Label>
@@ -79,7 +104,7 @@ export function SignupForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        Create account
+        {isSubmitting ? 'Creating account…' : 'Create account'}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">

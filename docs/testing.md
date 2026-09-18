@@ -42,7 +42,33 @@ pnpm test
 - `packages/config` — the `createEnv` validator
 - `packages/database` — client factories build without a network call
 - `packages/ui` — `Button` and `StatusBadge` render and respond to interaction
-- `apps/web` — the env schema, and the `ComingSoon` placeholder component
+- `apps/web` — the env schema, the `ComingSoon` placeholder component, and
+  (Phase 3) the full authentication/organization/RBAC surface:
+  - `lib/rbac.test.ts` — the permission matrix (including that QA and
+    Developer, equal rank, still get different capabilities)
+  - `lib/organizations.test.ts` — `resolveCurrentOrganization`'s cookie
+    fallback logic
+  - `(auth)/actions.test.ts` — signUp/signIn/signOut/password-reset
+    Server Actions, including that Supabase errors get mapped to safe
+    messages
+  - `middleware.test.ts` — route protection: unauthenticated → redirect
+    to `/login?next=...`, authenticated → through, and the
+    `/reset-password`/`/onboarding` special cases
+  - `onboarding/actions.test.ts`, `app/actions/organizations.test.ts` —
+    organization creation and switching, including rejecting an org the
+    caller doesn't belong to
+  - `(dashboard)/team/actions.test.ts` — invite/change-role/remove,
+    covering the owner-only guardrails and non-admin rejection
+  - `invite/[token]/actions.test.ts` — invitation acceptance
+  - `components/auth/*.test.tsx` — `LoginForm`/`SignupForm` validation
+    and success/error rendering
+
+  Server Actions are tested by mocking `@/lib/supabase/server` (and
+  `next/headers` where an action sets a cookie) with a small hand-built
+  Supabase client double per test file — see any file under
+  `(dashboard)/team/__tests__/` for the pattern. Shared mock objects a
+  `vi.mock` factory closes over must go through `vi.hoisted(...)`, not a
+  plain `const` — the factory runs before ordinary top-level statements.
 - `apps/api` — the `/health` route (via Fastify's `inject()`, no real port)
 - `workers/web` — job payload validation, and a real Playwright check
   (`runBasicPageCheck`) against both a page that loads and a URL that
@@ -59,7 +85,12 @@ not this phase.
 
 ## What's intentionally not here
 
-No integration tests hit a real Supabase or Redis instance — that needs
-local infrastructure (`docs/setup.md`) and is left for the phase that
-implements the real Test Run flow, so this phase's `pnpm test` stays fast
-and hermetic in CI.
+`pnpm test` never hits a real Supabase or Redis instance — every Server
+Action test mocks the Supabase client instead, so this stays fast and
+hermetic in CI. The RLS policies and functions those actions call
+through to (organization role guardrails, `accept_invitation()`, the
+last-owner trigger) were instead verified once, by hand, against the
+real Phase 2/3 Supabase project — see "Real project" in
+`docs/database.md` — since `pnpm test` has no way to exercise Postgres
+RLS as a specific authenticated role. That verification isn't repeatable
+via a script; re-run it by hand after any migration that touches RLS.

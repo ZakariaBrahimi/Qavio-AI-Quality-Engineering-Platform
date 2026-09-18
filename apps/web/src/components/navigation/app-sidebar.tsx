@@ -5,6 +5,8 @@ import { Zap } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import type { OrganizationMembership } from '@/lib/organizations';
+
 import { NAV_ITEMS } from './nav-items';
 import { OrganizationSwitcher } from './org-switcher';
 
@@ -12,9 +14,16 @@ export interface AppSidebarProps {
   className?: string;
   /** Called after a nav link is clicked — used to close the mobile drawer. */
   onNavigate?: () => void;
+  organizations: OrganizationMembership[];
+  currentOrganizationId: string | null;
 }
 
-export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
+export function AppSidebar({
+  className,
+  onNavigate,
+  organizations,
+  currentOrganizationId,
+}: AppSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -68,7 +77,10 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
           </Link>
         </div>
 
-        <OrganizationSwitcher organization={null} />
+        <OrganizationSwitcher
+          organizations={organizations}
+          currentOrganizationId={currentOrganizationId}
+        />
       </div>
     </div>
   );

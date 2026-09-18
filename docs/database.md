@@ -45,6 +45,11 @@ table.
 | `20250201000900_revoke_public_execute_on_triggers.sql` | follow-up: the trigger-only audit functions and `handle_new_user()`/`set_updated_at()` still had the default `PUBLIC` grant itself (not just the per-role one), so revoking from `anon`/`authenticated` alone hadn't closed them |
 | `20250201001000_rls_performance.sql` | wraps `auth.uid()` in RLS policies as `(select auth.uid())` and merges the two `profiles` SELECT policies into one, per the performance advisor |
 | `20250201001100_missing_fk_indexes.sql` | covering indexes for the secondary (non-`organization_id`) foreign keys the performance advisor flagged |
+| `20250201001200_invitations.sql` | `invitations`, `get_invitation_preview()` (token-scoped, callable signed-out), `accept_invitation()` |
+| `20250201001300_membership_role_guardrails.sql` | tightens `organization_members` insert/update/delete so only an owner can grant/touch the owner role, plus a trigger blocking removal of an organization's last owner |
+| `20250201001400_lock_down_trigger_function.sql` | same PUBLIC-grant gap as `20250201000900`, found on the new `prevent_last_owner_removal()` trigger function by the security advisor |
+| `20250201001500_invitations_performance.sql` | FK index + `(select auth.uid())` wrap on `invitations`, per the performance advisor |
+| `20250201001600_fix_accept_invitation_expiry_update.sql` | removes a no-op `update ... set status = 'expired'` inside `accept_invitation()` — it always rolled back with the `RAISE EXCEPTION` right after it, found by manually exercising the function; the expiry check itself was never affected, only the (never-persisted) bookkeeping |
 
 Deliberately not implemented yet (per the current product phase): devices,
 device_runs, visual_baselines, visual_comparisons, security_scans,
@@ -75,6 +80,47 @@ which inserts the organization and its first `organization_members` row
 (as `owner`) in one atomic, `SECURITY DEFINER` call — an organization can
 never exist without an owner, which would otherwise make it invisible to
 everyone under RLS.
+
+Symmetrically, an organization can never lose its *last* owner:
+`prevent_last_owner_removal()` (a trigger, not a policy — it needs to see
+whether an owner row being touched is the only one left, which an RLS
+`USING` clause can't express) blocks an `UPDATE` that changes an owner's
+role away from `owner`, or a `DELETE` of an owner row, whenever no other
+owner would remain. And only an owner may grant the `owner` role in the
+first place, or touch an existing owner's row at all — an admin's
+`has_organization_role(organization_id, 'admin')` alone is *not* enough
+for the `owner` transition on `organization_members` insert/update/delete
+(see `20250201001300_membership_role_guardrails.sql`). Before that
+migration, any admin could have promoted themselves to owner, or demoted
+the real one.
+
+## Invitations
+
+Adding someone to an organization always goes through `invitations`, never
+a direct `organization_members` insert — even for the app's own code path.
+`role`-gated the same way as everything else (`admin`+ to create/revoke,
+owner-only to invite as `owner`), with one partial unique index enforcing
+a single *pending* invite per `(organization_id, email)` at a time.
+
+Accepting one is the interesting part, because the invitee isn't an
+organization member yet — they can't satisfy any of the normal RLS
+policies:
+
+- `get_invitation_preview(token)` — `SECURITY DEFINER`, granted to `anon`
+  as well as `authenticated`, so an invite link works before the invitee
+  has even signed in. It only ever returns the one row matching an exact
+  token, never a list — the token itself is the capability, the same way
+  a password-reset link is.
+- `accept_invitation(token)` — `SECURITY DEFINER`, `authenticated` only.
+  Re-validates everything itself regardless of what the caller claims:
+  the token resolves to a `pending`, non-expired invitation, and the
+  caller's own `auth.users.email` matches the invited address
+  (case-insensitively). Only then does it insert the
+  `organization_members` row and mark the invitation `accepted`.
+
+`apps/web` never trusts a client-supplied email/role pair for this —
+the accept flow only ever takes a token, and everything it grants access
+to comes from the invitation row that token resolves to.
 
 ## Row Level Security
 
@@ -121,6 +167,29 @@ real migrations applied (see "Local verification" below) and all pass:
 - The Storage `artifacts` bucket policy correctly parses
   `organizations/{organization_id}/...` object paths and denies a
   non-member.
+
+The invitations/membership-guardrail additions were verified the same
+way, but against the real project directly (`SET ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub": "...", "role": "authenticated"}'`
+per call, then cleaned up) — RLS bypasses table ownership and superuser
+status only based on `current_user`, so this genuinely exercises policies
+even from a superuser connection, the same technique that caught the
+`session_user`-vs-`current_user` bug in Phase 2:
+
+- `get_invitation_preview()` returns the invite as `anon`; a direct
+  `select * from invitations` as `anon` returns zero rows.
+- `accept_invitation()` rejects a token whose invitation email doesn't
+  match the caller's, one that's expired, and one that's been revoked —
+  each with its own message — and succeeds for the real matching case,
+  actually creating the `organization_members` row, marking the
+  invitation `accepted`, and writing the audit log entry.
+- An admin cannot `UPDATE` their own row to `owner`, and cannot `UPDATE`
+  or `DELETE` the real owner's row (both silently affect zero rows,
+  since the policy hides the row rather than erroring).
+- An owner can grant `owner` to someone else; once two owners exist,
+  either can step down to `admin`. Once only one owner is left, that
+  owner's own `UPDATE` (self-demote) and `DELETE` (self-remove) are both
+  rejected by `prevent_last_owner_removal()`.
 
 ## Test run / result model
 
@@ -229,22 +298,25 @@ committed migrations.
 
 ## Real project
 
-All 12 migrations are also applied to a real, hosted Supabase project
+All 17 migrations are also applied to a real, hosted Supabase project
 (ref `bkxkwwocpampseojowxs`, `eu-west-1`, Postgres 17) — see
 `docs/environment-variables.md` for its URL/anon key and the seeded dev
-login. This is what surfaced the four follow-up migrations above:
+login. This is what surfaced most of the follow-up migrations above:
 `supabase_advisors` (security + performance) only run against a real
 project, and the local stub's `auth`/`vault` schemas turned out to be
 close enough to exercise RLS logic but not close enough to reproduce
 Supabase's own default grants — the exact gap
-`20250201000800_lock_down_function_privileges.sql` and
-`20250201000900_revoke_public_execute_on_triggers.sql` closed. Both
-advisors are clean now except `rls_enabled_no_policy` on
+`20250201000800_lock_down_function_privileges.sql`,
+`20250201000900_revoke_public_execute_on_triggers.sql`, and (a third time,
+on a Phase 3 trigger function) `20250201001400_lock_down_trigger_function.sql`
+each closed. Both advisors are clean now except `rls_enabled_no_policy` on
 `credential_secrets`/`integration_account_secrets` (INFO, intentional —
-see "Credentials & secrets" above) and `unused_index` (INFO, expected on
-a database with no real traffic yet). Encryption itself (Vault's actual
-at-rest crypto) now runs for real, since this project ships
-`pgsodium`/Vault — the local stub never encrypted anything.
+see "Credentials & secrets" above), `unused_index` (INFO, expected on
+a database with no real traffic yet), and `auth_leaked_password_protection`
+(WARN — a project-level Auth setting, not something a migration can
+touch; enable it from the dashboard under Auth → Policies). Encryption
+itself (Vault's actual at-rest crypto) now runs for real, since this
+project ships `pgsodium`/Vault — the local stub never encrypted anything.
 
 ## Type generation
 

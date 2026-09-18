@@ -10,10 +10,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate-types": "supabase gen types typescript --local > src/generated.ts"
+    "db:generate-types": "supabase gen types typescript --project-id bkxkwwocpampseojowxs > src/generated.ts"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.5.1",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.45.4"
   },
   "devDependencies": {

@@ -603,6 +603,60 @@ export type Database = {
           },
         ]
       }
+      invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          organization_id: string
+          role: Database["public"]["Enums"]["organization_role"]
+          status: Database["public"]["Enums"]["invitation_status"]
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          organization_id: string
+          role?: Database["public"]["Enums"]["organization_role"]
+          status?: Database["public"]["Enums"]["invitation_status"]
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          organization_id?: string
+          role?: Database["public"]["Enums"]["organization_role"]
+          status?: Database["public"]["Enums"]["invitation_status"]
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       issue_comments: {
         Row: {
           author_id: string | null
@@ -1412,6 +1466,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_invitation: {
+        Args: { p_token: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "organizations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_organization: {
         Args: { org_name: string; org_slug: string }
         Returns: {
@@ -1436,6 +1507,16 @@ export type Database = {
       get_integration_access_token: {
         Args: { p_integration_account_id: string }
         Returns: string
+      }
+      get_invitation_preview: {
+        Args: { p_token: string }
+        Returns: {
+          email: string
+          expires_at: string
+          organization_name: string
+          role: Database["public"]["Enums"]["organization_role"]
+          status: Database["public"]["Enums"]["invitation_status"]
+        }[]
       }
       has_organization_role: {
         Args: {
@@ -1503,6 +1584,7 @@ export type Database = {
         | "linear"
         | "github"
         | "gitlab"
+      invitation_status: "pending" | "accepted" | "revoked" | "expired"
       issue_severity: "critical" | "high" | "medium" | "low"
       issue_status:
         | "open"
@@ -1684,6 +1766,7 @@ export const Constants = {
         "github",
         "gitlab",
       ],
+      invitation_status: ["pending", "accepted", "revoked", "expired"],
       issue_severity: ["critical", "high", "medium", "low"],
       issue_status: [
         "open",
