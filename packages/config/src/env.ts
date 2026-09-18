@@ -32,12 +32,16 @@ export const publicEnvSchema = {
 
 /**
  * Server-only variables for the control plane (Next.js server actions,
- * route handlers). Never import this schema from a "use client" module.
+ * route handlers) — i.e. apps/web. Deliberately does NOT include
+ * REDIS_URL: apps/web never talks to the queue directly (only
+ * workers/*, via workerEnvSchema below, do), so requiring it here would
+ * make a real production deploy of just the web app fail validation for
+ * infrastructure it doesn't use. Never import this schema from a
+ * "use client" module.
  */
 export const serverEnvSchema = {
   ...publicEnvSchema,
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  REDIS_URL: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().optional(),
 };
 
