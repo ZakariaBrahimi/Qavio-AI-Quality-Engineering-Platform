@@ -20,9 +20,10 @@ The governing principle behind every architectural decision in this repo:
 
 **Next.js (App Router) + Supabase.** Owns everything a human interacts
 with directly: authentication, organizations, projects, environments,
-test configuration, triggering test runs, and rendering results, bugs,
+test configuration, triggering test runs, and rendering results, issues,
 integrations, and AI analysis metadata. Lives in `apps/web`, backed by
-`packages/database` and the schema in `supabase/migrations`.
+`packages/database` and the schema in `supabase/migrations` (see
+`docs/database.md`).
 
 ### Queue
 
@@ -53,7 +54,7 @@ workers/web (execution plane)
 Supabase Postgres (results, artifacts)
     │
     ▼
-apps/web renders results  →  (future) workers/ai analyzes failures → bugs
+apps/web renders results  →  (future) workers/ai analyzes failures → issues
 ```
 
 ## Why this split
@@ -65,10 +66,10 @@ apps/web renders results  →  (future) workers/ai analyzes failures → bugs
   reproducible and auditable without any AI involvement — AI analysis is
   an additive layer on top of results that already exist, never a
   replacement for producing them.
-- **Multi-tenant by construction.** Every tenant-scoped table traces back
-  to an `organizations` row (see the initial migration), so Row Level
-  Security in Postgres — not application code — is the source of truth for
-  "can this user see this row."
+- **Multi-tenant by construction.** Every tenant-scoped table carries its
+  own `organization_id` (see `docs/database.md`), so Row Level Security in
+  Postgres — not application code — is the source of truth for "can this
+  user see this row."
 
 ## Repository structure
 
@@ -86,15 +87,15 @@ qavio/
 │   └── security/        Security QA scanning (Phase 1 placeholder)
 ├── packages/
 │   ├── ui/               Design system (Radix UI + Tailwind, shadcn-style)
-│   ├── types/            Shared domain types (Project, TestRun, Bug, …)
+│   ├── types/            Shared domain types (Project, TestRun, Issue, …)
 │   ├── database/         Supabase client factories + generated DB types
 │   ├── ai/               AI reasoning layer (Phase 1 placeholder)
 │   ├── testing/          Shared Vitest config
-│   ├── integrations/     Bug-tracker export clients (Phase 1 placeholder)
+│   ├── integrations/     Issue-tracker export clients (Phase 1 placeholder)
 │   ├── config/           Shared tsconfig bases + env validation
 │   └── eslint-config/    Shared ESLint shareable configs
 ├── supabase/
-│   ├── migrations/       SQL schema + RLS policies
+│   ├── migrations/       SQL schema + RLS policies (see docs/database.md)
 │   ├── functions/        Edge functions (none yet)
 │   └── seed/              Local dev seed data
 ├── docs/                  This documentation
@@ -116,8 +117,8 @@ Each execution-plane worker follows the same shape as `workers/web`:
    directly by ad hoc SQL in the worker.
 
 `workers/ai` differs slightly: instead of consuming Test Run jobs, it will
-consume _failed Test Result_ events, call into `@qavio/ai`, and write a
-`Bug.aiSummary` — keeping the "AI reasons about results a deterministic
+consume _failed Test Result_ events, call into `@qavio/ai`, and write an
+`Issue.aiSummary` — keeping the "AI reasons about results a deterministic
 tool already produced" rule intact.
 
 ## Not in Phase 1

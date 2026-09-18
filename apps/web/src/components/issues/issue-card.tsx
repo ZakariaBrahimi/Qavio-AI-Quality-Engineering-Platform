@@ -1,11 +1,11 @@
-import type { Bug } from '@qavio/types';
+import type { Issue } from '@qavio/types';
 import { Card, CardContent, CardHeader, SeverityBadge } from '@qavio/ui';
 import Link from 'next/link';
 
 import { IssueStatus } from './issue-status';
 
 export interface IssueCardProps {
-  issue: Bug;
+  issue: Issue;
 }
 
 export function IssueCard({ issue }: IssueCardProps) {

@@ -1,33 +1,42 @@
 import type { Id, Timestamp } from './common';
 
 /**
- * The lifecycle of a Test Run, from creation through queueing to execution.
- * Mirrors BullMQ job states so the control plane can render progress
- * without polling the execution plane directly.
+ * The lifecycle of a Test Run. Mirrors the worker's own state machine
+ * (see supabase/migrations) plus an `analyzing` step for the AI analysis
+ * pass, so the control plane never has to infer run state from queue job
+ * state — the worker updates test_runs directly.
  */
-export type TestRunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled' | 'error';
+export type TestRunStatus =
+  | 'created'
+  | 'queued'
+  | 'starting'
+  | 'running'
+  | 'analyzing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 /** Only `functional` has a real worker in this phase. */
 export type TestRunType = 'functional' | 'visual' | 'responsive' | 'security';
 
 export interface TestRun {
   id: Id;
+  organizationId: Id;
   projectId: Id;
   environmentId: Id;
+  testSuiteId: Id | null;
   type: TestRunType;
   status: TestRunStatus;
-  triggeredBy: Id;
-  queueJobId: string | null;
+  triggeredBy: Id | null;
   startedAt: Timestamp | null;
   finishedAt: Timestamp | null;
   createdAt: Timestamp;
 }
 
 export const TEST_RUN_TERMINAL_STATUSES: readonly TestRunStatus[] = [
-  'passed',
+  'completed',
   'failed',
   'cancelled',
-  'error',
 ];
 
 /** True once a run has stopped executing, whatever its outcome. */

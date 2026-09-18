@@ -65,6 +65,8 @@ Details, including running Supabase and Redis locally: `docs/setup.md`.
 
 - [`docs/architecture.md`](docs/architecture.md) — control plane / queue /
   execution plane, repository structure, future worker architecture
+- [`docs/database.md`](docs/database.md) — schema, multi-tenant model,
+  roles, RLS, credentials/secrets, audit logging
 - [`docs/setup.md`](docs/setup.md) — local development setup
 - [`docs/environment-variables.md`](docs/environment-variables.md) — every
   variable, who consumes it, and why

@@ -1,35 +1,45 @@
-import { CheckCircle2, CircleDot, Clock, MinusCircle, XCircle } from 'lucide-react';
+import { CheckCircle2, CircleDot, Clock, MinusCircle, Sparkles, XCircle } from 'lucide-react';
 
 import { cn } from '../lib/cn';
 
 /**
- * Statuses shared across test runs, results, and bugs. Kept as a superset
- * union (rather than importing @qavio/types) so this package has no
- * dependency on domain-specific packages.
+ * Statuses shared across test runs, test run jobs, and test results. Kept
+ * as a superset union (rather than importing @qavio/types) so this
+ * package has no dependency on domain-specific packages.
  */
 export type Status =
+  | 'created'
   | 'queued'
+  | 'starting'
   | 'running'
+  | 'analyzing'
+  | 'active'
+  | 'delayed'
+  | 'completed'
   | 'passed'
   | 'failed'
   | 'cancelled'
   | 'error'
   | 'skipped'
-  | 'timed_out'
   | 'blocked';
 
 const STATUS_CONFIG: Record<
   Status,
   { label: string; icon: typeof CheckCircle2; className: string }
 > = {
+  created: { label: 'Created', icon: Clock, className: 'bg-muted text-muted-foreground' },
   queued: { label: 'Queued', icon: Clock, className: 'bg-muted text-muted-foreground' },
+  starting: { label: 'Starting', icon: CircleDot, className: 'bg-primary/10 text-primary' },
   running: { label: 'Running', icon: CircleDot, className: 'bg-primary/10 text-primary' },
+  analyzing: { label: 'Analyzing', icon: Sparkles, className: 'bg-secondary/10 text-secondary' },
+  active: { label: 'Active', icon: CircleDot, className: 'bg-primary/10 text-primary' },
+  delayed: { label: 'Delayed', icon: Clock, className: 'bg-warning/10 text-warning' },
+  completed: { label: 'Completed', icon: CheckCircle2, className: 'bg-success/10 text-success' },
   passed: { label: 'Passed', icon: CheckCircle2, className: 'bg-success/10 text-success' },
   failed: { label: 'Failed', icon: XCircle, className: 'bg-destructive/10 text-destructive' },
   cancelled: { label: 'Cancelled', icon: MinusCircle, className: 'bg-muted text-muted-foreground' },
   error: { label: 'Error', icon: XCircle, className: 'bg-destructive/10 text-destructive' },
   skipped: { label: 'Skipped', icon: MinusCircle, className: 'bg-muted text-muted-foreground' },
-  timed_out: { label: 'Timed Out', icon: Clock, className: 'bg-warning/10 text-warning' },
   blocked: { label: 'Blocked', icon: MinusCircle, className: 'bg-warning/10 text-warning' },
 };
 

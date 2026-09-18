@@ -12,6 +12,9 @@ export default function IntegrationsPage() {
     organizationId: '',
     provider,
     isConnected: false,
+    config: {},
+    connectedBy: null,
+    connectedAt: null,
     createdAt: new Date(0).toISOString(),
   }));
 

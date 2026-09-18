@@ -1,14 +1,11 @@
 import type { Id, Timestamp } from './common';
 
-export type EnvironmentKind = 'production' | 'staging' | 'preview' | 'local';
-
-export interface Environment {
+export interface TestSuite {
   id: Id;
   organizationId: Id;
   projectId: Id;
   name: string;
-  kind: EnvironmentKind;
-  baseUrl: string;
+  description: string | null;
   createdBy: Id | null;
   createdAt: Timestamp;
 }
