@@ -12,7 +12,6 @@
  * sanctioned access path is `get_credential_secret()` /
  * `get_integration_access_token()` (see supabase/migrations).
  */
-
 export type Json =
   | string
   | number
@@ -294,10 +293,13 @@ export type Database = {
       }
       environments: {
         Row: {
+          archived_at: string | null
           base_url: string
+          configuration: Json
           created_at: string
           created_by: string | null
           id: string
+          is_default: boolean
           kind: Database["public"]["Enums"]["environment_kind"]
           name: string
           organization_id: string
@@ -305,10 +307,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           base_url: string
+          configuration?: Json
           created_at?: string
           created_by?: string | null
           id?: string
+          is_default?: boolean
           kind?: Database["public"]["Enums"]["environment_kind"]
           name: string
           organization_id: string
@@ -316,10 +321,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           base_url?: string
+          configuration?: Json
           created_at?: string
           created_by?: string | null
           id?: string
+          is_default?: boolean
           kind?: Database["public"]["Enums"]["environment_kind"]
           name?: string
           organization_id?: string
@@ -970,8 +978,10 @@ export type Database = {
       }
       projects: {
         Row: {
+          archived_at: string | null
           created_at: string
           created_by: string | null
+          description: string | null
           id: string
           name: string
           organization_id: string
@@ -980,8 +990,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           id?: string
           name: string
           organization_id: string
@@ -990,8 +1002,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           id?: string
           name?: string
           organization_id?: string
@@ -1558,6 +1572,29 @@ export type Database = {
       organization_role_rank: {
         Args: { role: Database["public"]["Enums"]["organization_role"] }
         Returns: number
+      }
+      set_default_environment: {
+        Args: { p_environment_id: string }
+        Returns: {
+          archived_at: string | null
+          base_url: string
+          configuration: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          is_default: boolean
+          kind: Database["public"]["Enums"]["environment_kind"]
+          name: string
+          organization_id: string
+          project_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "environments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

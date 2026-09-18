@@ -12,7 +12,15 @@ export interface Project {
   organizationId: Id;
   name: string;
   slug: string;
+  description: string | null;
   platform: ProjectPlatform;
+  /** Non-null once archived — archiving is a soft delete, never removes the row. */
+  archivedAt: Timestamp | null;
   createdBy: Id | null;
   createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export function isProjectArchived(project: Pick<Project, 'archivedAt'>): boolean {
+  return project.archivedAt !== null;
 }

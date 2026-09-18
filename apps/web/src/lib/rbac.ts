@@ -36,8 +36,14 @@ export type Permission =
   | 'manage_organization'
   /** Invite, remove, and change the role of members. */
   | 'manage_members'
-  /** Create/update/delete projects and environments. */
+  /** Create, update, and archive/restore projects. Not hard delete — see `delete_project`. */
   | 'manage_projects'
+  /** Hard-delete a project (irreversible, cascades to everything under it). */
+  | 'delete_project'
+  /** Create, update, archive/restore an environment, and set which one is default. */
+  | 'manage_environments'
+  /** Hard-delete an environment (irreversible). */
+  | 'delete_environment'
   /** Run and manage QA workflows (test suites, test runs). */
   | 'manage_test_workflows'
   /** View test results and work with issues (comment, change status). */
@@ -49,6 +55,9 @@ const RANK_GATED: Record<Exclude<Permission, 'manage_test_workflows'>, number> =
   manage_organization: ROLE_RANK.admin,
   manage_members: ROLE_RANK.admin,
   manage_projects: ROLE_RANK.admin,
+  delete_project: ROLE_RANK.owner,
+  manage_environments: ROLE_RANK.developer,
+  delete_environment: ROLE_RANK.admin,
   manage_issues: ROLE_RANK.developer,
   view_results: ROLE_RANK.viewer,
 };

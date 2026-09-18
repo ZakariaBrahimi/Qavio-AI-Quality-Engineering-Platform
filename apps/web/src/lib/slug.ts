@@ -1,5 +1,5 @@
-/** Lowercase, hyphenated, ASCII-only — matches the `organizations.slug` column's intent. */
-export function slugify(input: string): string {
+/** Lowercase, hyphenated, ASCII-only — matches the `slug` columns' intent (organizations, projects). */
+export function slugify(input: string, fallback = 'org'): string {
   const slug = input
     .toLowerCase()
     .trim()
@@ -7,5 +7,5 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 48);
 
-  return slug || 'org';
+  return slug || fallback;
 }

@@ -50,6 +50,7 @@ table.
 | `20250201001400_lock_down_trigger_function.sql` | same PUBLIC-grant gap as `20250201000900`, found on the new `prevent_last_owner_removal()` trigger function by the security advisor |
 | `20250201001500_invitations_performance.sql` | FK index + `(select auth.uid())` wrap on `invitations`, per the performance advisor |
 | `20250201001600_fix_accept_invitation_expiry_update.sql` | removes a no-op `update ... set status = 'expired'` inside `accept_invitation()` — it always rolled back with the `RAISE EXCEPTION` right after it, found by manually exercising the function; the expiry check itself was never affected, only the (never-persisted) bookkeeping |
+| `20250201001700_project_environment_config.sql` | Phase 4: `projects.description`, `projects.archived_at` (soft delete), `environments.configuration` (jsonb, object-shape checked), `environments.archived_at`, `environments.is_default` + a partial unique index enforcing at most one default per project, and `set_default_environment(environment_id)` — a `SECURITY INVOKER` function so atomically clearing the old default and setting the new one can't race, without granting any privilege RLS wouldn't already give the caller |
 
 Deliberately not implemented yet (per the current product phase): devices,
 device_runs, visual_baselines, visual_comparisons, security_scans,
@@ -191,6 +192,36 @@ even from a superuser connection, the same technique that caught the
   owner's own `UPDATE` (self-demote) and `DELETE` (self-remove) are both
   rejected by `prevent_last_owner_removal()`.
 
+Phase 4's project/environment cross-org isolation was verified the same
+way, directly against the real project, using a throwaway organization and
+a throwaway `auth.users` row created and forged-JWT-tested inside a single
+transaction that ends in `ROLLBACK` (so nothing persists — no cleanup step
+needed):
+
+- A member of one organization cannot `SELECT`, `UPDATE`, or `DELETE`
+  another organization's project or environment by id — all affect/return
+  zero rows, exactly like a nonexistent id, which is what lets
+  `apps/web`'s `getProject()`/`getEnvironments()` return `null`/`[]` and
+  the page call `notFound()` without ever distinguishing "wrong id" from
+  "someone else's project."
+- The same user attempting an `INSERT` of an environment under another
+  organization's project — relying purely on the real `with check
+  has_organization_role(organization_id, 'developer')` policy, no
+  application-level guard — is rejected with an actual RLS policy
+  violation (`42501: new row violates row-level security policy`).
+- As a positive control, the same user's `INSERT`/`UPDATE`/`DELETE`
+  against a project in *their own* organization all succeed — confirming
+  the cross-org rejections above are real authorization checks, not a
+  blanket deny.
+
+This is also covered at the application layer: every Server Action in
+`apps/web/src/app/(dashboard)/projects/actions.ts` and
+`projects/[id]/actions.ts` re-scopes its query by the caller's
+`organization_id` in addition to the row id (defense in depth — RLS is
+the actual boundary, but a bug in one layer doesn't become an
+authorization hole), exercised by the Vitest suites alongside each
+action file.
+
 ## Test run / result model
 
 `test_runs.status`: `created → queued → starting → running → analyzing →
@@ -298,7 +329,7 @@ committed migrations.
 
 ## Real project
 
-All 17 migrations are also applied to a real, hosted Supabase project
+All 18 migrations are also applied to a real, hosted Supabase project
 (ref `bkxkwwocpampseojowxs`, `eu-west-1`, Postgres 17) — see
 `docs/environment-variables.md` for its URL/anon key and the seeded dev
 login. This is what surfaced most of the follow-up migrations above:
