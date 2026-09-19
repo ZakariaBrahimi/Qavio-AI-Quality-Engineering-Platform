@@ -81,6 +81,9 @@ Details, including running Supabase and Redis locally: `docs/setup.md`.
 - [`docs/railway-deployment.md`](docs/railway-deployment.md) — deploying
   `workers/web` to Railway: the Docker build, Playwright/Chromium runtime,
   environment variables, graceful shutdown
+- [`docs/phase-7-completion.md`](docs/phase-7-completion.md) — Phase 7
+  completion checkpoint: verified production deployment, the real E2E
+  test run, architecture, security controls, and acceptance criteria
 - [`docs/database.md`](docs/database.md) — schema, multi-tenant model,
   roles, RLS, credentials/secrets, audit logging
 - [`docs/authentication.md`](docs/authentication.md) — Supabase Auth,
