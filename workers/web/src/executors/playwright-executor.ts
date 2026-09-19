@@ -14,14 +14,19 @@ import { discoverLinks, normalizeUrl } from '../crawler/discover-links';
 import { runPageCheck, type PageCheckOutcome } from '../checks/run-page-check';
 import { installRouteGuard } from '../security/route-guard';
 import { validateTargetUrl } from '../security/target-validation';
+import { looksLikeAuthBoundary, resolveAuthContext } from '../security/auth-context';
 
 export interface PlaywrightExecutionTarget {
   baseUrl: string;
+  authMethod: 'none' | 'stored_state' | 'credentials';
+  authCredentialId: string | null;
 }
 
 export interface PlaywrightTestExecutorDeps {
-  /** Loads the environment's base URL fresh from the database — never trust anything carried in the queue payload (see docs/test-run-engine.md). `null` means the project/environment isn't a valid, currently-usable target. */
+  /** Loads the environment's base URL and authentication configuration fresh from the database — never trust anything carried in the queue payload (see docs/test-run-engine.md). `null` means the project/environment isn't a valid, currently-usable target. */
   resolveTarget(context: TestExecutionContext): Promise<PlaywrightExecutionTarget | null>;
+  /** Loads a credential's secret value, scoped to the run's own organization/project (see repository.loadCredentialSecret — authorization happens there, not in this function). `null` if the credential doesn't exist or doesn't belong to that org/project. */
+  loadCredentialSecret(organizationId: string, projectId: string, credentialId: string): Promise<string | null>;
   /** A handful of named milestones only (launching, checking page N of M) — never per-network-event, so this stays cheap on the Realtime channel it rides. */
   onProgress(context: TestExecutionContext, message: string): Promise<void>;
   /** Server-side only. Defaults to `true`; a developer can flip it locally to watch the crawl run. */
@@ -118,16 +123,32 @@ export class PlaywrightTestExecutor implements TestExecutor {
     }
 
     const limits = readCrawlLimits(context.configuration);
+
+    // Resolved fresh per run, never cached across runs or organizations —
+    // see security/auth-context.ts. `unavailable` is not thrown; it's
+    // carried through to crawlSite so one evidence page still gets
+    // checked/screenshotted before the run is marked `blocked`, per
+    // docs/authentication-qa.md (never a silently-passed login page,
+    // never a faked authentication).
+    const authResolution = await resolveAuthContext(
+      { loadCredentialSecret: (credentialId) => this.deps.loadCredentialSecret(context.organizationId, context.projectId, credentialId) },
+      target.authMethod,
+      target.authCredentialId,
+    );
+
     const browserOptions: BrowserManagerOptions = {
       headless: this.deps.headless ?? true,
       navigationTimeoutMs: limits.navigationTimeoutMs,
+      ...(authResolution.kind === 'stored_state' ? { storageState: authResolution.storageState } : {}),
     };
 
     await this.deps.onProgress(context, 'Launching browser…');
 
     try {
       return await withBrowserContext(browserOptions, (browserContext) =>
-        crawlSite(browserContext, validated.url, limits, context.signal, (message) => this.deps.onProgress(context, message)),
+        crawlSite(browserContext, validated.url, limits, context.signal, (message) => this.deps.onProgress(context, message), {
+          preBlockedReason: authResolution.kind === 'unavailable' ? authResolution.reason : null,
+        }),
       );
     } catch (error) {
       return {
@@ -137,6 +158,23 @@ export class PlaywrightTestExecutor implements TestExecutor {
       };
     }
   }
+}
+
+export interface CrawlOptions {
+  /**
+   * Set when authentication resolution already failed before any page was
+   * reached (see `execute` — a missing credential, an unimplemented auth
+   * method, a malformed stored state). The crawl still runs exactly one
+   * real page check against `allowedOrigin` so the run gets genuine
+   * evidence (a screenshot, HTTP status, final URL) instead of zero pages —
+   * but the overall result is forced to `blocked` regardless of that one
+   * check's own pass/fail outcome, and no further pages are queued. Never
+   * `null` is not the same as "authentication succeeded"; it only means
+   * `execute` didn't already know the run was blocked before crawling
+   * started — see the depth-0 auth-boundary check below for the other way
+   * a run becomes `blocked`.
+   */
+  preBlockedReason: string | null;
 }
 
 /**
@@ -153,6 +191,7 @@ export async function crawlSite(
   limits: CrawlLimits,
   signal: AbortSignal,
   onProgress: (message: string) => Promise<void>,
+  options: CrawlOptions = { preBlockedReason: null },
 ): Promise<TestExecutionResult> {
   installRouteGuard(browserContext, allowedOrigin);
   const page = await browserContext.newPage();
@@ -166,6 +205,14 @@ export async function crawlSite(
   let pagesFailed = 0;
   let cancelled = false;
   let lastProgressAt = 0;
+  /**
+   * Once set, no further links are queued (see the `!blockedReason` guard
+   * below), so the loop naturally stops after the one page already in
+   * flight — no separate early-exit check needed. Distinct from `failed`:
+   * this means "Qavio couldn't get past a login boundary", not "the
+   * application is broken".
+   */
+  let blockedReason: string | null = options.preBlockedReason;
 
   while (queue.length > 0) {
     if (signal.aborted) {
@@ -215,7 +262,23 @@ export async function crawlSite(
       });
     }
 
-    if (next.depth < limits.maxDepth && outcome.finalUrl) {
+    // Only the entry page (depth 0) is checked against this heuristic — a
+    // redirect discovered several hops into the crawl is far more likely
+    // to be an ordinary in-app login-gated sub-feature than the whole
+    // target being behind an authentication boundary Qavio isn't
+    // configured for, and misclassifying that as `blocked` would hide a
+    // real crawl finding. `blockedReason` can already be set here (the
+    // `preBlockedReason` case) — this check is skipped then, since the
+    // run's fate is already decided.
+    if (!blockedReason && next.depth === 0 && outcome.finalUrl) {
+      const finalUrl = new URL(outcome.finalUrl);
+      const requestedPath = new URL(next.url).pathname;
+      if (finalUrl.pathname !== requestedPath && looksLikeAuthBoundary(finalUrl)) {
+        blockedReason = `The target redirected to an authentication page (${finalUrl.pathname}) and no working authentication is configured for this environment.`;
+      }
+    }
+
+    if (!blockedReason && next.depth < limits.maxDepth && outcome.finalUrl) {
       const discovered = discoverLinks({
         hrefs: outcome.discoveredHrefs,
         pageUrl: new URL(outcome.finalUrl),
@@ -233,10 +296,20 @@ export async function crawlSite(
     pagesPassed: results.length - pagesFailed,
     pagesFailed,
     cancelled,
+    blocked: blockedReason !== null,
   };
 
   if (cancelled) {
     return { status: 'failed', errorMessage: 'Test run was cancelled during execution.', results, artifacts, summary };
+  }
+
+  if (blockedReason) {
+    // Every result already collected (at most one — see `preBlockedReason`
+    // and the depth-0 check above) is relabelled `blocked` too, so the
+    // dashboard's per-page results table never shows a `passed`/`failed`
+    // page underneath a run whose overall status is `blocked`.
+    const blockedResults = results.map((result) => ({ ...result, status: 'blocked' as const }));
+    return { status: 'blocked', errorMessage: blockedReason, results: blockedResults, artifacts, summary };
   }
 
   if (results.length === 0) {

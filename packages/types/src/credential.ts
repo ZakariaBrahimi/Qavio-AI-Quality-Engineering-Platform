@@ -1,6 +1,15 @@
 import type { Id, Timestamp } from './common';
 
-export type CredentialType = 'api_key' | 'basic_auth' | 'oauth_token' | 'ssh_key' | 'generic';
+export type CredentialType =
+  | 'api_key'
+  | 'basic_auth'
+  | 'oauth_token'
+  | 'ssh_key'
+  | 'generic'
+  /** The secret value is a Playwright `storageState` JSON blob (cookies + localStorage) from an already-authenticated session — see `Environment.authMethod: 'stored_state'` and workers/web's browser-manager.ts. */
+  | 'playwright_storage_state'
+  /** Reserved for a future email/password (+ OTP) login flow — see `Environment.authMethod: 'credentials'`. Not read by PlaywrightTestExecutor yet. */
+  | 'login_credentials';
 
 /**
  * Metadata about a secret a test run needs to reach a target environment.

@@ -17,6 +17,18 @@ export interface PageCheckOptions {
   failOnConsoleError?: boolean;
 }
 
+/**
+ * Upper bound on the extra wait for the page to actually render after
+ * `domcontentloaded` fires (see the `waitForLoadState('networkidle', …)`
+ * call below) — deliberately short and deterministic, not a long fixed
+ * sleep: most SPAs settle in well under this; a page that never goes
+ * network-idle (persistent polling, analytics beacons) just proceeds to
+ * the screenshot once this elapses, exactly as it would have before this
+ * wait existed. Bounded so one slow page can't meaningfully extend a
+ * 15-page crawl's total duration.
+ */
+const RENDER_SETTLE_TIMEOUT_MS = 3_000;
+
 export interface NetworkFailure {
   url: string;
   method: string;
@@ -123,6 +135,21 @@ export async function runPageCheck(page: Page, url: string, options: PageCheckOp
 
     if (navigated) {
       finalUrl = page.url();
+
+      // `domcontentloaded` fires as soon as the initial HTML parses — for a
+      // client-rendered SPA (React/Vue/etc.), that's often still just an
+      // empty root <div>, before the framework has mounted and painted
+      // anything. Give the page a short, bounded chance to settle before
+      // reading its title/links or taking the evidence screenshot, so
+      // those reflect what a user would actually see rather than a blank
+      // shell. Never fatal — a page that keeps the network busy forever
+      // (polling, analytics) just proceeds once the timeout elapses.
+      try {
+        await page.waitForLoadState('networkidle', { timeout: RENDER_SETTLE_TIMEOUT_MS });
+      } catch {
+        // Timed out waiting for network idle — proceed with whatever rendered so far.
+      }
+
       try {
         title = await page.title();
       } catch {

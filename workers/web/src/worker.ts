@@ -187,10 +187,11 @@ export async function processTestRunJob(
       return;
     }
 
-    const finalStatus: TestRunStatus = result.status === 'completed' ? 'completed' : 'failed';
+    const finalStatus: TestRunStatus =
+      result.status === 'completed' ? 'completed' : result.status === 'blocked' ? 'blocked' : 'failed';
     await repository.transitionTestRun(admin, latest, finalStatus, {
       finishedAt: new Date().toISOString(),
-      errorMessage: finalStatus === 'failed' ? (result.errorMessage ?? 'Test run failed.') : null,
+      errorMessage: finalStatus !== 'completed' ? (result.errorMessage ?? 'Test run failed.') : null,
       ...(result.summary !== undefined ? { summary: result.summary } : {}),
     });
 

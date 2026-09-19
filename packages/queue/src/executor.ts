@@ -61,8 +61,16 @@ export interface TestExecutionArtifact {
 }
 
 export interface TestExecutionResult {
-  status: 'completed' | 'failed';
-  /** Run-level failure reason (couldn't start, timed out) — set only when `status` is `'failed'`. */
+  /**
+   * `blocked`: the run could not meaningfully proceed for a reason that
+   * isn't the target application's fault and isn't Qavio's own failure
+   * either — most commonly, the target requires authentication Qavio
+   * isn't configured to satisfy. Distinct from `failed` so the dashboard
+   * (and anyone reading `test_runs.status`) never mistakes "needs
+   * configuration" for "the application is broken" or "this passed".
+   */
+  status: 'completed' | 'failed' | 'blocked';
+  /** Run-level failure/block reason (couldn't start, timed out, authentication required) — set when `status` is `'failed'` or `'blocked'`. */
   errorMessage?: string;
   results: TestExecutionResultItem[];
   artifacts?: TestExecutionArtifact[];

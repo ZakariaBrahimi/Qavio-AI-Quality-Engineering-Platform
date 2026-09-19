@@ -15,7 +15,7 @@ import {
   PropertyList,
   StatusBadge,
 } from '@qavio/ui';
-import { AlertCircle, FlaskConical } from 'lucide-react';
+import { AlertCircle, FlaskConical, ShieldAlert } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -118,6 +118,16 @@ export default async function TestRunDetailsPage({ params }: { params: { id: str
         <Alert variant="destructive">
           <AlertCircle />
           <AlertDescription>{testRun.errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {testRun.status === 'blocked' && testRun.errorMessage ? (
+        <Alert variant="warning">
+          <ShieldAlert />
+          <AlertDescription>
+            This run was blocked, not failed — the target could not be reached in a way Qavio is configured to
+            authenticate. {testRun.errorMessage}
+          </AlertDescription>
         </Alert>
       ) : null}
 

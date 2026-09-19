@@ -294,6 +294,8 @@ export type Database = {
       environments: {
         Row: {
           archived_at: string | null
+          auth_credential_id: string | null
+          auth_method: Database["public"]["Enums"]["environment_auth_method"]
           base_url: string
           configuration: Json
           created_at: string
@@ -308,6 +310,8 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          auth_credential_id?: string | null
+          auth_method?: Database["public"]["Enums"]["environment_auth_method"]
           base_url: string
           configuration?: Json
           created_at?: string
@@ -322,6 +326,8 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          auth_credential_id?: string | null
+          auth_method?: Database["public"]["Enums"]["environment_auth_method"]
           base_url?: string
           configuration?: Json
           created_at?: string
@@ -335,6 +341,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "environments_auth_credential_id_fkey"
+            columns: ["auth_credential_id"]
+            isOneToOne: false
+            referencedRelation: "credentials"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "environments_created_by_fkey"
             columns: ["created_by"]
@@ -1513,6 +1526,10 @@ export type Database = {
         Args: { target_organization_id: string }
         Returns: boolean
       }
+      create_credential_secret: {
+        Args: { p_credential_id: string; p_secret: string }
+        Returns: undefined
+      }
       create_organization: {
         Args: { org_name: string; org_slug: string }
         Returns: {
@@ -1593,6 +1610,8 @@ export type Database = {
         Args: { p_environment_id: string }
         Returns: {
           archived_at: string | null
+          auth_credential_id: string | null
+          auth_method: Database["public"]["Enums"]["environment_auth_method"]
           base_url: string
           configuration: Json
           created_at: string
@@ -1627,6 +1646,9 @@ export type Database = {
         | "oauth_token"
         | "ssh_key"
         | "generic"
+        | "playwright_storage_state"
+        | "login_credentials"
+      environment_auth_method: "none" | "stored_state" | "credentials"
       environment_kind: "production" | "staging" | "preview" | "local"
       fix_attempt_status: "pending" | "running" | "succeeded" | "failed"
       fix_suggestion_status: "proposed" | "approved" | "rejected" | "applied"
@@ -1665,6 +1687,7 @@ export type Database = {
         | "completed"
         | "failed"
         | "cancelled"
+        | "blocked"
       test_run_type: "functional" | "visual" | "responsive" | "security"
     }
     CompositeTypes: {
@@ -1807,7 +1830,10 @@ export const Constants = {
         "oauth_token",
         "ssh_key",
         "generic",
+        "playwright_storage_state",
+        "login_credentials",
       ],
+      environment_auth_method: ["none", "stored_state", "credentials"],
       environment_kind: ["production", "staging", "preview", "local"],
       fix_attempt_status: ["pending", "running", "succeeded", "failed"],
       fix_suggestion_status: ["proposed", "approved", "rejected", "applied"],
@@ -1849,6 +1875,7 @@ export const Constants = {
         "completed",
         "failed",
         "cancelled",
+        "blocked",
       ],
       test_run_type: ["functional", "visual", "responsive", "security"],
     },

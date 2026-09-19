@@ -1,4 +1,4 @@
-import type { Environment, EnvironmentKind } from '@qavio/types';
+import type { Environment, EnvironmentAuthMethod, EnvironmentKind } from '@qavio/types';
 
 import { createClient } from '@/lib/supabase/server';
 
@@ -11,6 +11,8 @@ interface EnvironmentRow {
   base_url: string;
   configuration: unknown;
   is_default: boolean;
+  auth_method: EnvironmentAuthMethod;
+  auth_credential_id: string | null;
   archived_at: string | null;
   created_by: string | null;
   created_at: string;
@@ -27,6 +29,8 @@ function toEnvironment(row: EnvironmentRow): Environment {
     baseUrl: row.base_url,
     configuration: (row.configuration as Record<string, unknown> | null) ?? {},
     isDefault: row.is_default,
+    authMethod: row.auth_method,
+    authCredentialId: row.auth_credential_id,
     archivedAt: row.archived_at,
     createdBy: row.created_by,
     createdAt: row.created_at,

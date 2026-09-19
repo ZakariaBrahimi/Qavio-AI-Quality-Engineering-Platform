@@ -19,20 +19,6 @@ ${body}
 </html>`;
 }
 
-export const HOME_PAGE = layout(
-  'QA Fixture',
-  `<p>A minimal app for exercising Qavio's Playwright QA engine.</p>
-<nav>
-  <ul>
-    <li><a href="/about">About</a></li>
-    <li><a href="/contact">Contact</a></li>
-    <li><a href="/broken">Broken page</a></li>
-    <li><a href="/console-error">Console error page</a></li>
-    <li><a href="/network-error">Network error page</a></li>
-  </ul>
-</nav>`,
-);
-
 export const ABOUT_PAGE = layout(
   'About',
   `<p>This fixture app exists only to be crawled and checked. It has no other pages linked from here.</p>
@@ -72,3 +58,55 @@ export const NETWORK_ERROR_PAGE = layout(
 );
 
 export const NOT_FOUND_PAGE = layout('Not Found', '<p>Nothing here.</p>');
+
+/**
+ * A deterministic, credential-and-OTP-gated flow mirroring MizaniyaPay's
+ * real shape (redirect to `/auth/login`, then an email OTP step, then the
+ * authenticated app) — see docs/authentication-qa.md. The credential and
+ * OTP code below are fixture-only test values, never real secrets, and
+ * exist purely so `PlaywrightTestExecutor`'s authentication-boundary
+ * detection and `stored_state` handling have a real, reachable app to be
+ * exercised against in tests (see workers/web's auth-context tests and
+ * playwright-executor tests).
+ */
+
+export function loginPage(error?: string): string {
+  return layout(
+    'Log in',
+    `<p>Sign in to reach the authenticated fixture app.</p>
+${error ? `<p role="alert">${error}</p>` : ''}
+<form method="post" action="/auth/login">
+  <label>Email <input type="email" name="email" /></label>
+  <label>Password <input type="password" name="password" /></label>
+  <button type="submit">Continue</button>
+</form>`,
+  );
+}
+
+export function otpPage(error?: string): string {
+  return layout(
+    'Enter verification code',
+    `<p>A one-time code was sent to your email.</p>
+${error ? `<p role="alert">${error}</p>` : ''}
+<form method="post" action="/auth/otp">
+  <label>Code <input type="text" name="code" inputmode="numeric" /></label>
+  <button type="submit">Verify</button>
+</form>`,
+  );
+}
+
+export const APP_PAGE = layout(
+  'Authenticated app',
+  `<p>You are signed in. This is the fixture app's authenticated entry point.</p>
+<nav>
+  <ul>
+    <li><a href="/app/about">About (authenticated)</a></li>
+  </ul>
+</nav>`,
+);
+
+export const APP_ABOUT_PAGE = layout(
+  'Authenticated app — About',
+  `<p>A second authenticated page, reachable only after login, to exercise same-origin crawling past the auth boundary.</p>
+<p><a href="/app">Back to app home</a></p>`,
+);

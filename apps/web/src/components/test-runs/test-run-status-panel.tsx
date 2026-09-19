@@ -41,7 +41,7 @@ export function TestRunStatusPanel({ testRunId, status, canCancel }: TestRunStat
   const router = useRouter();
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const isFinished = status === 'completed' || status === 'failed' || status === 'cancelled';
+  const isFinished = status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'blocked';
 
   useEffect(() => {
     if (isFinished) return;

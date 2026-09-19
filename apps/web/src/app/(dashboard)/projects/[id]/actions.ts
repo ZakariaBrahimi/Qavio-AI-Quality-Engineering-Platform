@@ -6,7 +6,8 @@ import { fail, ok, type ActionResult } from '@/lib/action-result';
 import { mapDbError } from '@/lib/db-errors';
 import { ENVIRONMENT_KINDS } from '@/lib/project-constants';
 import { getCurrentOrganization } from '@/lib/organizations';
-import { hasPermission } from '@/lib/rbac';
+import { hasPermission, hasRole } from '@/lib/rbac';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 const urlSchema = z
@@ -210,5 +211,183 @@ export async function setDefaultEnvironment(input: { environmentId: string }): P
   });
 
   if (rpcError) return fail(mapDbError(rpcError));
+  return ok(undefined);
+}
+
+/**
+ * A Playwright `storageState` is, at minimum, `{ cookies: [...] }` —
+ * `origins` (localStorage) is optional. Mirrors
+ * workers/web/src/security/auth-context.ts's own `parseStorageState` so a
+ * value that's accepted here is guaranteed to be one the worker can later
+ * use — never validated more loosely on the write side than the read side.
+ */
+const storageStateJsonSchema = z
+  .string()
+  .min(1, 'Paste the storage state JSON exported from an authenticated Playwright session.')
+  .superRefine((value, ctx) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Not valid JSON.' });
+      return;
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Must be a storageState object, e.g. { "cookies": [...] }.' });
+      return;
+    }
+    const candidate = parsed as Record<string, unknown>;
+    if (!Array.isArray(candidate.cookies)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Missing a "cookies" array.' });
+    }
+    if (candidate.origins !== undefined && !Array.isArray(candidate.origins)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '"origins", if present, must be an array.' });
+    }
+  });
+
+async function requireAdmin() {
+  const organization = await getCurrentOrganization();
+  if (!organization) return { organization: null, error: fail('No active organization.') };
+  if (!hasRole(organization.role, 'admin')) {
+    return { organization: null, error: fail('Configuring authentication requires an admin role or above.') };
+  }
+  return { organization, error: null };
+}
+
+/**
+ * Sets an environment's authentication method without touching any
+ * secret — `none`/`credentials` never need one (`credentials` is modeled
+ * but not yet implemented by PlaywrightTestExecutor, see
+ * packages/types/src/environment.ts). Switching away from `stored_state`
+ * detaches the credential reference but doesn't delete the underlying
+ * credential row, so re-selecting `stored_state` later can still reuse it
+ * (see `saveEnvironmentStoredState`).
+ */
+export async function setEnvironmentAuthMethod(input: {
+  environmentId: string;
+  projectId: string;
+  authMethod: 'none' | 'credentials';
+}): Promise<ActionResult> {
+  const { organization, error } = await requireAdmin();
+  if (error) return error;
+
+  const supabase = createClient();
+  const { error: updateError } = await supabase
+    .from('environments')
+    .update({ auth_method: input.authMethod, auth_credential_id: null })
+    .eq('id', input.environmentId)
+    .eq('project_id', input.projectId)
+    .eq('organization_id', organization.organizationId);
+
+  if (updateError) return fail(mapDbError(updateError));
+
+  await supabase.rpc('log_audit_event', {
+    p_organization_id: organization.organizationId,
+    p_action: 'environment_auth_method_changed',
+    p_target_type: 'environment',
+    p_target_id: input.environmentId,
+    p_metadata: { auth_method: input.authMethod },
+  });
+
+  return ok(undefined);
+}
+
+/**
+ * The one path a `playwright_storage_state` credential's secret ever
+ * enters Qavio: admin-only (stricter than `manage_environments`'s
+ * developer+, since this is the action that actually receives a secret
+ * value), validated before it ever reaches the database, and never
+ * re-read or echoed back afterward — the edit dialog's textarea always
+ * starts empty (see EditEnvironmentDialog), and this action's return
+ * value carries no secret material, only success/failure.
+ *
+ * The secret itself only ever reaches Supabase Vault via
+ * `create_credential_secret()`, which is service_role-only (see
+ * supabase/migrations/20250201002200_environment_authentication.sql) —
+ * that's the one thing here that needs `createAdminClient()` rather than
+ * the caller's own session-scoped client; everything else (the
+ * credentials *metadata* row, the environment update) goes through the
+ * normal RLS-gated client like every other action in this file.
+ */
+export async function saveEnvironmentStoredState(input: {
+  environmentId: string;
+  projectId: string;
+  storageStateJson: string;
+}): Promise<ActionResult> {
+  const parsedJson = storageStateJsonSchema.safeParse(input.storageStateJson);
+  if (!parsedJson.success) return fail(parsedJson.error.issues[0]?.message ?? 'Invalid storage state.');
+
+  const { organization, error } = await requireAdmin();
+  if (error) return error;
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: environment, error: environmentError } = await supabase
+    .from('environments')
+    .select('id, name, auth_credential_id')
+    .eq('id', input.environmentId)
+    .eq('project_id', input.projectId)
+    .eq('organization_id', organization.organizationId)
+    .maybeSingle();
+
+  if (environmentError) return fail(mapDbError(environmentError));
+  if (!environment) return fail('Environment not found.');
+
+  let credentialId = environment.auth_credential_id;
+  let createdNewCredential = false;
+
+  if (!credentialId) {
+    const { data: credential, error: credentialError } = await supabase
+      .from('credentials')
+      .insert({
+        organization_id: organization.organizationId,
+        project_id: input.projectId,
+        environment_id: input.environmentId,
+        name: `${environment.name} — stored session state`,
+        type: 'playwright_storage_state',
+        created_by: user?.id ?? null,
+      })
+      .select('id')
+      .single();
+
+    if (credentialError || !credential) return fail(mapDbError(credentialError));
+    credentialId = credential.id;
+    createdNewCredential = true;
+  }
+
+  const admin = createAdminClient();
+  const { error: secretError } = await admin.rpc('create_credential_secret', {
+    p_credential_id: credentialId,
+    p_secret: input.storageStateJson,
+  });
+
+  if (secretError) {
+    if (createdNewCredential) {
+      // Best-effort cleanup — never leave a credential row with no secret behind it.
+      await supabase.from('credentials').delete().eq('id', credentialId);
+    }
+    return fail('Could not store the authentication state. Please try again.');
+  }
+
+  const { error: updateError } = await supabase
+    .from('environments')
+    .update({ auth_method: 'stored_state', auth_credential_id: credentialId })
+    .eq('id', input.environmentId)
+    .eq('project_id', input.projectId)
+    .eq('organization_id', organization.organizationId);
+
+  if (updateError) return fail(mapDbError(updateError));
+
+  await supabase.rpc('log_audit_event', {
+    p_organization_id: organization.organizationId,
+    p_action: 'environment_auth_method_changed',
+    p_target_type: 'environment',
+    p_target_id: input.environmentId,
+    p_metadata: { auth_method: 'stored_state', rotated: !createdNewCredential },
+  });
+
   return ok(undefined);
 }

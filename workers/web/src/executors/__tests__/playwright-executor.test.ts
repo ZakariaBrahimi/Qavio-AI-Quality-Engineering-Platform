@@ -33,6 +33,26 @@ async function startFixtureSite(): Promise<{ url: string; close: () => Promise<v
   };
 }
 
+/** Mirrors the real MizaniyaPay shape: unauthenticated requests to `/` (and anywhere else) redirect to `/auth/login`, which itself renders a real page — the crawler must recognize this as an authentication boundary, not a broken or empty page. */
+async function startAuthGatedFixtureSite(): Promise<{ url: string; close: () => Promise<void> }> {
+  const server: Server = createServer((req, res) => {
+    const path = req.url ?? '/';
+    if (path === '/auth/login') {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<html><head><title>Log in</title></head><body>Please log in.</body></html>');
+    } else {
+      res.writeHead(302, { location: '/auth/login' });
+      res.end();
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
 function makeContext(overrides: Partial<TestExecutionContext> = {}): TestExecutionContext {
   return {
     testRunId: 'run-1',
@@ -51,7 +71,8 @@ const FULL_LIMITS: CrawlLimits = { maxPages: 15, maxDepth: 2, maxDurationMs: 120
 describe('PlaywrightTestExecutor.execute — target resolution and SSRF gate', () => {
   it('fails the run without launching a browser when the target fails SSRF validation', async () => {
     const executor = new PlaywrightTestExecutor({
-      resolveTarget: async () => ({ baseUrl: 'http://169.254.169.254/' }),
+      resolveTarget: async () => ({ baseUrl: 'http://169.254.169.254/', authMethod: 'none', authCredentialId: null }),
+      loadCredentialSecret: async () => null,
       onProgress: vi.fn().mockResolvedValue(undefined),
       headless: true,
     });
@@ -66,6 +87,7 @@ describe('PlaywrightTestExecutor.execute — target resolution and SSRF gate', (
   it('fails the run when the environment/project cannot be resolved', async () => {
     const executor = new PlaywrightTestExecutor({
       resolveTarget: async () => null,
+      loadCredentialSecret: async () => null,
       onProgress: vi.fn().mockResolvedValue(undefined),
       headless: true,
     });
@@ -122,7 +144,7 @@ describe('crawlSite', () => {
 
     // The one failing page makes the whole run 'failed' — this is Phase 7's own aggregation, not a diagnosis of "which page has a bug" (that's what the per-result status is for).
     expect(result.status).toBe('failed');
-    expect(result.summary).toEqual({ pagesChecked: 3, pagesPassed: 2, pagesFailed: 1, cancelled: false });
+    expect(result.summary).toEqual({ pagesChecked: 3, pagesPassed: 2, pagesFailed: 1, cancelled: false, blocked: false });
 
     const screenshotCount = result.artifacts?.filter((a) => a.kind === 'screenshot').length ?? 0;
     expect(screenshotCount).toBe(3);
@@ -187,5 +209,66 @@ describe('crawlSite', () => {
     expect(result.summary).toMatchObject({ cancelled: true });
     // Cancellation caught it before all 3 pages of the fixture site were checked.
     expect(result.results.length).toBeLessThan(3);
+  }, 15_000);
+});
+
+describe('crawlSite — authentication blocking', () => {
+  let authFixture: { url: string; close: () => Promise<void> };
+  let browser: Browser;
+  let context: BrowserContext;
+
+  beforeAll(async () => {
+    authFixture = await startAuthGatedFixtureSite();
+    browser = await chromium.launch({ headless: true });
+  });
+
+  afterAll(async () => {
+    await browser.close();
+    await authFixture.close();
+  });
+
+  afterEach(async () => {
+    await context.close();
+  });
+
+  it('reports blocked (not completed) when auth resolution already failed, and still captures one page of evidence', async () => {
+    context = await browser.newContext();
+
+    const result = await crawlSite(
+      context,
+      new URL(authFixture.url),
+      FULL_LIMITS,
+      new AbortController().signal,
+      vi.fn().mockResolvedValue(undefined),
+      { preBlockedReason: "This environment's authentication method is 'stored_state' but no credential is attached." },
+    );
+
+    expect(result.status).toBe('blocked');
+    expect(result.errorMessage).toMatch(/authentication/i);
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0]?.status).toBe('blocked');
+    expect(result.summary).toMatchObject({ blocked: true });
+    // Real evidence was still captured — a screenshot of the login page, not a fabricated pass.
+    const screenshotCount = result.artifacts?.filter((a) => a.kind === 'screenshot').length ?? 0;
+    expect(screenshotCount).toBe(1);
+  }, 15_000);
+
+  it('detects an unconfigured target redirecting to a login boundary and reports blocked without treating it as an application defect', async () => {
+    context = await browser.newContext();
+
+    const result = await crawlSite(
+      context,
+      new URL(authFixture.url),
+      FULL_LIMITS,
+      new AbortController().signal,
+      vi.fn().mockResolvedValue(undefined),
+      { preBlockedReason: null },
+    );
+
+    expect(result.status).toBe('blocked');
+    expect(result.errorMessage).toMatch(/authentication page/i);
+    // Never classified as an application defect — the single page checked is relabelled blocked, not failed.
+    expect(result.results.every((r) => r.status === 'blocked')).toBe(true);
+    expect(result.results.every((r) => r.status !== 'failed')).toBe(true);
   }, 15_000);
 });

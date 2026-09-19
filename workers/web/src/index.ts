@@ -15,7 +15,8 @@ const admin = createSupabaseAdminClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_R
 /** Loaded fresh per run, never trusted from the queue payload — see repository.loadExecutionTarget. */
 async function resolvePlaywrightTarget(context: { organizationId: string; projectId: string; environmentId: string }) {
   const target = await repository.loadExecutionTarget(admin, context.organizationId, context.projectId, context.environmentId);
-  return target ? { baseUrl: target.baseUrl } : null;
+  if (!target) return null;
+  return { baseUrl: target.baseUrl, authMethod: target.authMethod, authCredentialId: target.authCredentialId };
 }
 
 // Empty (the default) in every deployed environment — see
@@ -28,6 +29,8 @@ const allowedTestHosts = new Set(
 
 const playwrightExecutor = new PlaywrightTestExecutor({
   resolveTarget: resolvePlaywrightTarget,
+  loadCredentialSecret: (organizationId, projectId, credentialId) =>
+    repository.loadCredentialSecret(admin, organizationId, projectId, credentialId),
   onProgress: (context, message) => repository.updateProgress(admin, context.organizationId, context.testRunId, message),
   allowedTestHosts,
 });

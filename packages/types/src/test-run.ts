@@ -14,7 +14,8 @@ export type TestRunStatus =
   | 'analyzing'
   | 'completed'
   | 'failed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'blocked';
 
 /** Only `functional` has a real worker in this phase. */
 export type TestRunType = 'functional' | 'visual' | 'responsive' | 'security';
@@ -45,6 +46,7 @@ export const TEST_RUN_TERMINAL_STATUSES: readonly TestRunStatus[] = [
   'completed',
   'failed',
   'cancelled',
+  'blocked',
 ];
 
 /** True once a run has stopped executing, whatever its outcome. */
@@ -68,21 +70,27 @@ export function isTestRunFinished(status: TestRunStatus): boolean {
  * Failure: any non-terminal state -> failed (enqueueing can fail
  * before a job even exists, a worker can fail while starting up, etc.
  * — not just running -> failed).
+ * Blocked: any non-terminal state -> blocked, same shape as `failed` but
+ * a distinct outcome — the run didn't fail because the target is broken,
+ * it couldn't proceed because it hit an authentication requirement Qavio
+ * isn't configured to satisfy (see PlaywrightTestExecutor). Never written
+ * as a disguised `completed`; see docs/authentication-qa.md.
  * Cancellation: any non-terminal state -> cancelled, EXCEPT `created`
  * — the control plane never leaves a run sitting in `created`; it's
  * queued (or immediately failed) in the same action that creates it,
  * so there is no moment a user could cancel one from that state.
- * completed/failed/cancelled are terminal: no outgoing transitions.
+ * completed/failed/cancelled/blocked are terminal: no outgoing transitions.
  */
 export const TEST_RUN_TRANSITIONS: Readonly<Record<TestRunStatus, readonly TestRunStatus[]>> = {
   created: ['queued', 'failed'],
-  queued: ['starting', 'failed', 'cancelled'],
-  starting: ['running', 'failed', 'cancelled'],
-  running: ['analyzing', 'completed', 'failed', 'cancelled'],
-  analyzing: ['completed', 'failed', 'cancelled'],
+  queued: ['starting', 'failed', 'cancelled', 'blocked'],
+  starting: ['running', 'failed', 'cancelled', 'blocked'],
+  running: ['analyzing', 'completed', 'failed', 'cancelled', 'blocked'],
+  analyzing: ['completed', 'failed', 'cancelled', 'blocked'],
   completed: [],
   failed: [],
   cancelled: [],
+  blocked: [],
 };
 
 export function canTransitionTestRunStatus(from: TestRunStatus, to: TestRunStatus): boolean {

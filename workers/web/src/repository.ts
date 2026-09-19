@@ -50,6 +50,8 @@ export async function loadEnvironmentBaseUrl(
 export interface ExecutionTarget {
   baseUrl: string;
   projectPlatform: Database['public']['Enums']['project_platform'];
+  authMethod: Database['public']['Enums']['environment_auth_method'];
+  authCredentialId: string | null;
 }
 
 /**
@@ -77,7 +79,7 @@ export async function loadExecutionTarget(
       .maybeSingle(),
     admin
       .from('environments')
-      .select('base_url')
+      .select('base_url, auth_method, auth_credential_id')
       .eq('organization_id', organizationId)
       .eq('project_id', projectId)
       .eq('id', environmentId)
@@ -89,7 +91,49 @@ export async function loadExecutionTarget(
   if (environmentError) throw new Error(`Failed to load environment ${environmentId}: ${environmentError.message}`);
   if (!project || !environment) return null;
 
-  return { baseUrl: environment.base_url, projectPlatform: project.platform };
+  return {
+    baseUrl: environment.base_url,
+    projectPlatform: project.platform,
+    authMethod: environment.auth_method,
+    authCredentialId: environment.auth_credential_id,
+  };
+}
+
+/**
+ * The one path a worker ever reads a credential's secret value through.
+ * Authorization happens here, not inside `get_credential_secret()` itself
+ * (that RPC has no `auth.uid()` to check — see its own comment in
+ * supabase/migrations/20250201002200_environment_authentication.sql):
+ * this query first proves the credential belongs to the *same*
+ * organization and project the run's own job payload claims, and only
+ * calls the RPC if that holds. A credential id that exists but belongs to
+ * someone else's org/project — or a different project in the same org —
+ * comes back `null`, never the secret, never a raw query error that could
+ * hint at whether the id exists at all.
+ */
+export async function loadCredentialSecret(
+  admin: AdminClient,
+  organizationId: string,
+  projectId: string,
+  credentialId: string,
+): Promise<string | null> {
+  const { data: credential, error: credentialError } = await admin
+    .from('credentials')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('project_id', projectId)
+    .eq('id', credentialId)
+    .maybeSingle();
+
+  if (credentialError) throw new Error(`Failed to load credential ${credentialId}: ${credentialError.message}`);
+  if (!credential) return null;
+
+  const { data: secret, error: secretError } = await admin.rpc('get_credential_secret', {
+    p_credential_id: credentialId,
+  });
+
+  if (secretError) throw new Error(`Failed to read secret for credential ${credentialId}: ${secretError.message}`);
+  return secret;
 }
 
 /**

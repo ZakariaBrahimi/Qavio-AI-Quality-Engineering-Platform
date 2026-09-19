@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   toast,
 } from '@qavio/ui';
-import { Archive, ArchiveRestore, ExternalLink, KeyRound, MoreVertical, Pencil, Star, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ExternalLink, KeyRound, Lock, MoreVertical, Pencil, ShieldCheck, Star, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
@@ -23,8 +23,8 @@ import {
   setDefaultEnvironment,
 } from '@/app/(dashboard)/projects/[id]/actions';
 import { EditEnvironmentDialog } from '@/components/environments/edit-environment-dialog';
-import { ENVIRONMENT_KIND_LABELS } from '@/lib/project-constants';
-import { hasPermission } from '@/lib/rbac';
+import { ENVIRONMENT_AUTH_METHOD_LABELS, ENVIRONMENT_KIND_LABELS } from '@/lib/project-constants';
+import { hasPermission, hasRole } from '@/lib/rbac';
 
 export interface EnvironmentCardProps {
   environment: Environment;
@@ -41,6 +41,7 @@ export function EnvironmentCard({ environment, role, credentialCount }: Environm
 
   const canManage = hasPermission(role, 'manage_environments');
   const canDelete = hasPermission(role, 'delete_environment');
+  const canConfigureAuth = hasRole(role, 'admin');
   const isArchived = Boolean(environment.archivedAt);
 
   function handleSetDefault() {
@@ -99,6 +100,16 @@ export function EnvironmentCard({ environment, role, credentialCount }: Environm
               </Badge>
             ) : null}
             {isArchived ? <Badge variant="outline">Archived</Badge> : null}
+            {environment.authMethod !== 'none' ? (
+              <Badge variant="outline" className="gap-1">
+                {environment.authMethod === 'stored_state' ? (
+                  <ShieldCheck className="h-3 w-3" />
+                ) : (
+                  <Lock className="h-3 w-3" />
+                )}
+                {ENVIRONMENT_AUTH_METHOD_LABELS[environment.authMethod]}
+              </Badge>
+            ) : null}
           </div>
           <a
             href={environment.baseUrl}
@@ -156,7 +167,12 @@ export function EnvironmentCard({ environment, role, credentialCount }: Environm
         ) : null}
       </div>
 
-      <EditEnvironmentDialog environment={environment} open={editOpen} onOpenChange={setEditOpen} />
+      <EditEnvironmentDialog
+        environment={environment}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        canConfigureAuth={canConfigureAuth}
+      />
 
       <ConfirmDialog
         open={archiveOpen}
