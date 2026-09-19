@@ -7,6 +7,8 @@ export interface TestTypeOptionProps {
   description: string;
   selected: boolean;
   recommended?: boolean;
+  /** No worker executes this type yet (see @qavio/types' TestRunType doc comment) — shown but not selectable, rather than silently accepting a selection nothing will honor. */
+  disabled?: boolean;
   onSelect: () => void;
 }
 
@@ -17,16 +19,22 @@ export function TestTypeOption({
   description,
   selected,
   recommended,
+  disabled,
   onSelect,
 }: TestTypeOptionProps) {
   return (
     <button
       type="button"
       onClick={onSelect}
+      disabled={disabled}
       aria-pressed={selected}
       className={cn(
         'flex flex-col gap-2 rounded-lg border p-4 text-left transition-colors',
-        selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent',
+        disabled
+          ? 'cursor-not-allowed border-border opacity-50'
+          : selected
+            ? 'border-primary bg-primary/5'
+            : 'border-border hover:bg-accent',
       )}
     >
       <div className="flex items-center justify-between">
@@ -40,7 +48,11 @@ export function TestTypeOption({
       </div>
       <p className="text-sm font-medium text-foreground">{title}</p>
       <p className="text-xs text-muted-foreground">{description}</p>
-      {recommended ? (
+      {disabled ? (
+        <span className="inline-flex w-fit items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          Coming soon
+        </span>
+      ) : recommended ? (
         <span className="inline-flex w-fit items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
           Recommended
         </span>

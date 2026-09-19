@@ -1,4 +1,4 @@
-import { createEnv, publicEnvSchema, serverEnvSchema } from '@qavio/config';
+import { createEnv, publicEnvSchema, queueEnvSchema, serverEnvSchema } from '@qavio/config';
 
 /**
  * Validated at call time (not at module scope) so importing this file never
@@ -12,4 +12,12 @@ export function getPublicEnv() {
 
 export function getServerEnv() {
   return createEnv(serverEnvSchema);
+}
+
+/**
+ * Only `src/lib/queue.ts` (the BullMQ producer) calls this — every other
+ * server action keeps using `getServerEnv()`, which doesn't require Redis.
+ */
+export function getQueueEnv() {
+  return createEnv(queueEnvSchema);
 }

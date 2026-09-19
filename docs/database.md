@@ -131,14 +131,21 @@ gets explicit policies. As a rule of thumb across the schema:
 - **Read**: any organization member (`is_organization_member`), except
   `credentials` (metadata only, admin+), `usage_events`, `subscriptions`,
   and `audit_logs` (admin+ — billing- and security-adjacent).
-- **Write**: role-gated per resource (e.g. `developer`+ to start a test
-  run, `qa`+ to manage test suites/cases/issues, `admin`+ to manage
+- **Write**: role-gated per resource (e.g. `qa`+ to start/cancel a test
+  run or manage test suites/cases/issues, `admin`+ to manage
   projects/environments/integrations/credentials, `owner` to delete a
-  project).
-- **Worker-written tables** (`test_run_jobs`, `test_results`, `artifacts`,
-  `ai_analyses`, `fix_attempts`, `usage_events`) have no
-  authenticated-role insert/update policy at all — only the service role
-  (which bypasses RLS) writes them; members only ever read.
+  project). `test_runs`' own INSERT/UPDATE policies use a dedicated
+  `can_manage_test_workflows()` function rather than the rank-based
+  `has_organization_role()` most other tables use — QA and Developer are
+  peer-ranked (see `organization_role_rank()`), but only QA may actually
+  run tests, which a rank threshold alone can't express. See
+  `docs/test-run-engine.md`'s Authorization section.
+- **Worker-written tables** (`test_results`, `artifacts`, `ai_analyses`,
+  `fix_attempts`, `usage_events`) have no authenticated-role insert/update
+  policy at all — only the service role (which bypasses RLS) writes them;
+  members only ever read. `test_run_jobs` is the one exception: it also
+  has a QA+ INSERT policy, since the control plane (not just the worker)
+  records the BullMQ job id for a run it just created.
 
 See `docs/architecture.md`'s "Not in Phase 1" list for what's out of
 scope; this document only covers what's actually implemented.
@@ -154,8 +161,8 @@ real migrations applied (see "Local verification" below) and all pass:
   affected).
 - A non-member cannot `INSERT` an issue into a project they don't belong
   to (RLS violation).
-- A `viewer` can read a project but cannot start a test run (role-gated
-  `INSERT` fails; `developer`+ succeeds).
+- A `viewer` or `developer` can read a project but cannot start a test run
+  (`can_manage_test_workflows()` fails for both; `qa`+ succeeds).
 - `credential_secrets` and `integration_account_secrets` are unreachable
   by `anon`/`authenticated` — no policy exists for either role. Only
   `service_role` may call `get_credential_secret()` /
@@ -226,15 +233,22 @@ action file.
 
 `test_runs.status`: `created → queued → starting → running → analyzing →
 completed | failed | cancelled`. The `analyzing` step is for the (future)
-AI analysis pass. Not yet modeled: `timed_out`, `paused`,
-`waiting_for_approval` — nothing produces them until the execution engine
-exists; adding enum values later is a cheap, additive migration
-(`ALTER TYPE ... ADD VALUE`).
+AI analysis pass — nothing produces it yet. The real queue/worker
+pipeline that drives every other transition is implemented as of Phase 6;
+see `docs/test-run-engine.md` for the full mechanism (BullMQ, retries,
+timeouts, cancellation, idempotency) and the centralized transition map
+in `packages/types/src/test-run.ts`. Not yet modeled: `timed_out`,
+`paused`, `waiting_for_approval` — a timed-out or cancelled run currently
+lands on the existing `failed`/`cancelled` statuses; adding enum values
+later is a cheap, additive migration (`ALTER TYPE ... ADD VALUE`).
 
 `test_run_jobs` is the actual BullMQ job record (queue name, job id,
-attempts, last error) — one run can have multiple jobs (retries, or a
-fan-out per browser). `test_runs.status` is the run's own state, set by
-the worker; it is not derived from job rows on every read.
+attempts, last error) — `job_id` is unique (see
+`20250201001900_test_run_jobs_unique_job_id.sql`) and always equals the
+test run's own id, so each run has exactly one upserted job row, updated
+in place across retries rather than accumulating one row per attempt.
+`test_runs.status` is the run's own state, set by the worker; it is not
+derived from job rows on every read.
 
 `test_results.status`: `passed | failed | skipped | blocked`.
 

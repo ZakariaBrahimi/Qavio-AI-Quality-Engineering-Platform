@@ -33,16 +33,29 @@ export const publicEnvSchema = {
 /**
  * Server-only variables for the control plane (Next.js server actions,
  * route handlers) — i.e. apps/web. Deliberately does NOT include
- * REDIS_URL: apps/web never talks to the queue directly (only
- * workers/*, via workerEnvSchema below, do), so requiring it here would
- * make a real production deploy of just the web app fail validation for
- * infrastructure it doesn't use. Never import this schema from a
- * "use client" module.
+ * REDIS_URL: most of apps/web (auth, projects, team management, …) never
+ * touches the queue, so requiring it here would make every server action
+ * fail validation for infrastructure it doesn't use. The one code path
+ * that actually enqueues a Test Run job validates `queueEnvSchema`
+ * instead (see below) — narrower on purpose. Never import this schema
+ * from a "use client" module.
  */
 export const serverEnvSchema = {
   ...publicEnvSchema,
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().optional(),
+};
+
+/**
+ * Server-only variable for the control plane's BullMQ *producer* —
+ * apps/web/src/lib/queue.ts, the only place in apps/web that enqueues a
+ * Test Run job, is the only caller of this schema. Kept separate from
+ * `serverEnvSchema` so that the rest of the app (which never touches
+ * Redis) isn't forced to have it configured too. Never import this
+ * schema from a "use client" module.
+ */
+export const queueEnvSchema = {
+  REDIS_URL: z.string().min(1),
 };
 
 /**
@@ -54,6 +67,8 @@ export const workerEnvSchema = {
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
+  /** Hard ceiling on one Test Run's execution time — see docs/test-run-engine.md's Timeouts section. A test must not be allowed to run forever. */
+  TEST_RUN_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
   PLAYWRIGHT_HEADLESS: z
     .enum(['true', 'false'])
     .default('true')

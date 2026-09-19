@@ -75,6 +75,9 @@ importers:
       '@qavio/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
+      '@qavio/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@qavio/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -261,6 +264,34 @@ importers:
         specifier: ^5.5.4
         version: 5.9.3
 
+  packages/queue:
+    dependencies:
+      '@qavio/types':
+        specifier: workspace:*
+        version: link:../types
+      bullmq:
+        specifier: ^5.13.2
+        version: 5.81.5
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@qavio/config':
+        specifier: workspace:*
+        version: link:../config
+      '@qavio/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@qavio/testing':
+        specifier: workspace:*
+        version: link:../testing
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.1
+        version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
+
   packages/testing:
     dependencies:
       vitest:
@@ -403,6 +434,12 @@ importers:
       '@qavio/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@qavio/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@qavio/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@qavio/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -412,9 +449,6 @@ importers:
       playwright:
         specifier: 1.56.0
         version: 1.56.0
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
     devDependencies:
       '@qavio/eslint-config':
         specifier: workspace:*

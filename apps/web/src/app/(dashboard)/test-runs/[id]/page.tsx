@@ -1,4 +1,6 @@
 import {
+  Alert,
+  AlertDescription,
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
@@ -13,16 +15,18 @@ import {
   PropertyList,
   StatusBadge,
 } from '@qavio/ui';
-import { FlaskConical } from 'lucide-react';
+import { AlertCircle, FlaskConical } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { TestResultTable } from '@/components/test-runs/test-result-table';
+import { TestRunStatusPanel } from '@/components/test-runs/test-run-status-panel';
 import { getEnvironments } from '@/lib/environments';
 import { getCurrentOrganization } from '@/lib/organizations';
 import { TEST_RUN_TYPE_LABELS } from '@/lib/project-constants';
 import { getProject } from '@/lib/projects';
+import { hasPermission } from '@/lib/rbac';
 import { getTestResults, getTestRun } from '@/lib/test-runs';
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
@@ -72,9 +76,23 @@ export default async function TestRunDetailsPage({ params }: { params: { id: str
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Run #{testRun.id.slice(0, 8)}</h1>
-          <StatusBadge status={testRun.status} />
+          <div className="flex items-center gap-3">
+            <StatusBadge status={testRun.status} />
+            <TestRunStatusPanel
+              testRunId={testRun.id}
+              status={testRun.status}
+              canCancel={hasPermission(organization.role, 'manage_test_workflows')}
+            />
+          </div>
         </div>
       </div>
+
+      {testRun.status === 'failed' && testRun.errorMessage ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{testRun.errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <Card>

@@ -10,6 +10,8 @@ interface TestRunRow {
   test_suite_id: string | null;
   type: TestRunType;
   status: TestRunStatus;
+  configuration: unknown;
+  error_message: string | null;
   triggered_by: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -25,6 +27,8 @@ function toTestRun(row: TestRunRow): TestRun {
     testSuiteId: row.test_suite_id,
     type: row.type,
     status: row.status,
+    configuration: (row.configuration as Record<string, unknown> | null) ?? {},
+    errorMessage: row.error_message,
     triggeredBy: row.triggered_by,
     startedAt: row.started_at,
     finishedAt: row.finished_at,

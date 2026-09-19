@@ -1,0 +1,19 @@
+services:
+  # BullMQ's connection for local development — apps/web (the producer) and
+  # workers/web (the consumer) both point REDIS_URL at this. Supabase's own
+  # local stack is started separately via `supabase start` (it manages its
+  # own Docker containers); this file only covers what that doesn't.
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - qavio-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  qavio-redis-data:

@@ -1277,8 +1277,10 @@ export type Database = {
       }
       test_runs: {
         Row: {
+          configuration: Json
           created_at: string
           environment_id: string
+          error_message: string | null
           finished_at: string | null
           id: string
           organization_id: string
@@ -1290,8 +1292,10 @@ export type Database = {
           type: Database["public"]["Enums"]["test_run_type"]
         }
         Insert: {
+          configuration?: Json
           created_at?: string
           environment_id: string
+          error_message?: string | null
           finished_at?: string | null
           id?: string
           organization_id: string
@@ -1303,8 +1307,10 @@ export type Database = {
           type?: Database["public"]["Enums"]["test_run_type"]
         }
         Update: {
+          configuration?: Json
           created_at?: string
           environment_id?: string
+          error_message?: string | null
           finished_at?: string | null
           id?: string
           organization_id?: string
@@ -1496,6 +1502,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      can_manage_test_workflows: {
+        Args: { target_organization_id: string }
+        Returns: boolean
       }
       create_organization: {
         Args: { org_name: string; org_slug: string }

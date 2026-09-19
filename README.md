@@ -72,6 +72,9 @@ Details, including running Supabase and Redis locally: `docs/setup.md`.
 
 - [`docs/architecture.md`](docs/architecture.md) — control plane / queue /
   execution plane, repository structure, future worker architecture
+- [`docs/test-run-engine.md`](docs/test-run-engine.md) — the real Test Run
+  job pipeline: BullMQ queue, worker orchestration, state machine, retries,
+  concurrency, timeouts, cancellation, idempotency
 - [`docs/database.md`](docs/database.md) — schema, multi-tenant model,
   roles, RLS, credentials/secrets, audit logging
 - [`docs/authentication.md`](docs/authentication.md) — Supabase Auth,

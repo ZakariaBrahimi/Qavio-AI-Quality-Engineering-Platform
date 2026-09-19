@@ -27,6 +27,10 @@ export interface TestRun {
   testSuiteId: Id | null;
   type: TestRunType;
   status: TestRunStatus;
+  /** Run-level configuration (coverage mode, instructions, options) — the queue payload never carries this; the worker loads it from this row instead. Phase 6 persists it but the placeholder executor doesn't interpret it yet. */
+  configuration: Record<string, unknown>;
+  /** Set only on a run-level failure (couldn't start, timed out, worker crashed) — not per-test-result detail, which lives on TestResult. */
+  errorMessage: string | null;
   triggeredBy: Id | null;
   startedAt: Timestamp | null;
   finishedAt: Timestamp | null;
@@ -42,4 +46,59 @@ export const TEST_RUN_TERMINAL_STATUSES: readonly TestRunStatus[] = [
 /** True once a run has stopped executing, whatever its outcome. */
 export function isTestRunFinished(status: TestRunStatus): boolean {
   return TEST_RUN_TERMINAL_STATUSES.includes(status);
+}
+
+/**
+ * The one authoritative map of legal Test Run state transitions — used
+ * by both the control plane (apps/web, creating/cancelling a run) and
+ * the execution plane (workers/web, driving a run through its
+ * lifecycle), so neither can drift from the other or allow a
+ * transition the other side would reject. This is what "centralized
+ * state transition mechanism" means in docs/test-run-engine.md: one
+ * map, imported everywhere a status is written, never hand-rolled
+ * per-caller.
+ *
+ * Happy path: created -> queued -> starting -> running -> completed
+ * (running -> analyzing -> completed is allowed for a future AI
+ * analysis pass, not produced by anything in this phase).
+ * Failure: any non-terminal state -> failed (enqueueing can fail
+ * before a job even exists, a worker can fail while starting up, etc.
+ * — not just running -> failed).
+ * Cancellation: any non-terminal state -> cancelled, EXCEPT `created`
+ * — the control plane never leaves a run sitting in `created`; it's
+ * queued (or immediately failed) in the same action that creates it,
+ * so there is no moment a user could cancel one from that state.
+ * completed/failed/cancelled are terminal: no outgoing transitions.
+ */
+export const TEST_RUN_TRANSITIONS: Readonly<Record<TestRunStatus, readonly TestRunStatus[]>> = {
+  created: ['queued', 'failed'],
+  queued: ['starting', 'failed', 'cancelled'],
+  starting: ['running', 'failed', 'cancelled'],
+  running: ['analyzing', 'completed', 'failed', 'cancelled'],
+  analyzing: ['completed', 'failed', 'cancelled'],
+  completed: [],
+  failed: [],
+  cancelled: [],
+};
+
+export function canTransitionTestRunStatus(from: TestRunStatus, to: TestRunStatus): boolean {
+  return TEST_RUN_TRANSITIONS[from].includes(to);
+}
+
+/** Thrown by `assertTestRunTransition` — a caller can match on this type to distinguish "invalid transition" from any other error. */
+export class InvalidTestRunTransitionError extends Error {
+  constructor(
+    public readonly from: TestRunStatus,
+    public readonly to: TestRunStatus,
+  ) {
+    super(`Cannot transition test run from "${from}" to "${to}".`);
+    this.name = 'InvalidTestRunTransitionError';
+  }
+}
+
+/** Throws `InvalidTestRunTransitionError` instead of silently no-opting — every caller (producer and worker alike) must handle an invalid transition explicitly rather than accidentally writing bad state. */
+export function assertTestRunTransition(from: TestRunStatus, to: TestRunStatus): void {
+  if (!canTransitionTestRunStatus(from, to)) {
+    throw new InvalidTestRunTransitionError(from, to);
+  }
 }

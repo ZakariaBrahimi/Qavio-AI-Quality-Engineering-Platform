@@ -17,6 +17,7 @@
     "@hookform/resolvers": "^3.9.0",
     "@qavio/database": "workspace:*",
     "@qavio/integrations": "workspace:*",
+    "@qavio/queue": "workspace:*",
     "@qavio/types": "workspace:*",
     "@qavio/ui": "workspace:*",
     "@tanstack/react-query": "^5.59.0",

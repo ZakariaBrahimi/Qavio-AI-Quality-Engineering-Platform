@@ -16,10 +16,11 @@
   },
   "dependencies": {
     "@qavio/config": "workspace:*",
+    "@qavio/database": "workspace:*",
+    "@qavio/queue": "workspace:*",
     "@qavio/types": "workspace:*",
     "bullmq": "^5.13.2",
-    "playwright": "1.56.0",
-    "zod": "^3.23.8"
+    "playwright": "1.56.0"
   },
   "devDependencies": {
     "@qavio/eslint-config": "workspace:*",

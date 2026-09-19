@@ -1,20 +1,44 @@
 import { createEnv, workerEnvSchema } from '@qavio/config';
+import { createSupabaseAdminClient } from '@qavio/database';
 
+import { PlaceholderTestExecutor } from './executors/placeholder-executor';
+import { logger } from './logger';
+import * as repository from './repository';
 import { createTestRunWorker } from './worker';
 
 const env = createEnv(workerEnvSchema);
 
+const admin = createSupabaseAdminClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+
+const executor = new PlaceholderTestExecutor({
+  headless: env.PLAYWRIGHT_HEADLESS,
+  loadBaseUrl: (context) =>
+    repository.loadEnvironmentBaseUrl(admin, context.organizationId, context.projectId, context.environmentId),
+});
+
 const worker = createTestRunWorker({
   redisUrl: env.REDIS_URL,
   concurrency: env.WORKER_CONCURRENCY,
-  headless: env.PLAYWRIGHT_HEADLESS,
+  admin,
+  timeoutMs: env.TEST_RUN_TIMEOUT_MS,
+  executor,
 });
 
 worker.on('completed', (job) => {
-  // eslint-disable-next-line no-console
-  console.log(`Test run ${job.id} completed`);
+  logger.info('BullMQ job completed', { jobId: job.id, testRunId: job.data.testRunId });
 });
 
 worker.on('failed', (job, error) => {
-  console.error(`Test run ${job?.id} failed:`, error);
+  logger.error('BullMQ job failed', { jobId: job?.id, testRunId: job?.data.testRunId }, { error: error.message });
 });
+
+worker.on('error', (error) => {
+  logger.error('Worker error', {}, { error: error.message });
+});
+
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(signal, () => {
+    logger.info(`Received ${signal}, shutting down worker`);
+    void worker.close().then(() => process.exit(0));
+  });
+}

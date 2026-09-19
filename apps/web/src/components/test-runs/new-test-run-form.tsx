@@ -1,16 +1,9 @@
 'use client';
 
-import type { Environment, Project } from '@qavio/types';
-import {
-  AlertTriangle,
-  Eye,
-  Play,
-  Settings as SettingsIcon,
-  Shield,
-  Smartphone,
-  Sparkles,
-} from 'lucide-react';
+import type { Environment, Project, TestRunType } from '@qavio/types';
+import { Eye, Play, Shield, Smartphone } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import {
@@ -26,57 +19,48 @@ import {
 import { AIInsightCard } from '@/components/ai/ai-insight-card';
 import { EnvironmentSelector } from '@/components/forms/environment-selector';
 import { ProjectSelector } from '@/components/forms/project-selector';
+import { createTestRun } from '@/app/(dashboard)/test-runs/actions';
 import { TestTypeOption } from './test-type-option';
 
-type TestType = 'full' | 'functional' | 'visual' | 'responsive' | 'security' | 'custom';
 type Coverage = 'smart' | 'pages' | 'custom';
 
-const TEST_TYPES: { id: TestType; icon: typeof Sparkles; title: string; description: string }[] = [
-  {
-    id: 'full',
-    icon: Sparkles,
-    title: 'Full QA Run',
-    description: 'Functional, visual, responsive, and security testing.',
-  },
+/** Only `functional` has a real worker in this phase (see @qavio/types' TestRunType) — the other three are shown so the run-type picker reads as the full product, but stay disabled rather than accepting a selection nothing executes. */
+const TEST_TYPES: { id: TestRunType; icon: typeof Play; title: string; description: string; available: boolean }[] = [
   {
     id: 'functional',
     icon: Play,
     title: 'Functional Tests',
     description: 'Test user flows and core functionality.',
+    available: true,
   },
   {
     id: 'visual',
     icon: Eye,
     title: 'Visual Tests',
     description: 'Compare with Figma designs or reference screenshots.',
+    available: false,
   },
   {
     id: 'responsive',
     icon: Smartphone,
     title: 'Responsive Tests',
     description: 'Test across devices and screen sizes.',
+    available: false,
   },
   {
     id: 'security',
     icon: Shield,
     title: 'Security Tests',
     description: 'Scan for vulnerabilities (OWASP, API, etc).',
-  },
-  {
-    id: 'custom',
-    icon: SettingsIcon,
-    title: 'Custom Test',
-    description: 'Configure your own test suite and instructions.',
+    available: false,
   },
 ];
 
-const TEST_TYPE_LABEL: Record<TestType, string> = {
-  full: 'Full QA Run',
+const TEST_TYPE_LABEL: Record<TestRunType, string> = {
   functional: 'Functional',
   visual: 'Visual',
   responsive: 'Responsive',
   security: 'Security',
-  custom: 'Custom',
 };
 
 export interface NewTestRunFormProps {
@@ -84,18 +68,14 @@ export interface NewTestRunFormProps {
   environments: Environment[];
 }
 
-/**
- * The project/environment pickers are real (Phase 4 shipped both), but
- * there is still no execution worker to hand a run to — Start Test Run
- * stays disabled regardless of what's selected. The wizard is real,
- * queueing a run is not, until workers/web + the queue are connected.
- */
 export function NewTestRunForm({ projects, environments }: NewTestRunFormProps) {
-  const [testType, setTestType] = useState<TestType>('full');
+  const router = useRouter();
+  const [testType, setTestType] = useState<TestRunType>('functional');
   const [coverage, setCoverage] = useState<Coverage>('smart');
   const [instructions, setInstructions] = useState('');
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [environmentId, setEnvironmentId] = useState<string | undefined>(undefined);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const environmentsForProject = useMemo(
     () => environments.filter((environment) => environment.projectId === projectId),
@@ -105,7 +85,24 @@ export function NewTestRunForm({ projects, environments }: NewTestRunFormProps) 
   const selectedProject = projects.find((project) => project.id === projectId);
   const selectedEnvironment = environmentsForProject.find((environment) => environment.id === environmentId);
 
-  const canSubmit = false; // No execution worker to hand this run to yet.
+  const canSubmit = Boolean(projectId && environmentId) && !isSubmitting;
+
+  async function handleStart() {
+    if (!projectId || !environmentId) return;
+
+    setIsSubmitting(true);
+    const result = await createTestRun({ projectId, environmentId, type: testType });
+    setIsSubmitting(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success('Test run started.');
+    router.push(`/test-runs/${result.data.testRunId}`);
+    router.refresh();
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -159,8 +156,11 @@ export function NewTestRunForm({ projects, environments }: NewTestRunFormProps) 
                 title={option.title}
                 description={option.description}
                 selected={testType === option.id}
-                recommended={option.id === 'full'}
-                onSelect={() => setTestType(option.id)}
+                recommended={option.id === 'functional'}
+                disabled={!option.available}
+                onSelect={() => {
+                  if (option.available) setTestType(option.id);
+                }}
               />
             ))}
           </div>
@@ -208,27 +208,27 @@ export function NewTestRunForm({ projects, environments }: NewTestRunFormProps) 
                 </button>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Coverage selection doesn&apos;t affect execution yet — this run always performs the basic
+              functional check described below.
+            </p>
           </div>
 
           <div className="space-y-2">
             <Label>Additional Options</Label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-start gap-2 text-sm">
-                <Checkbox defaultChecked />
+              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Checkbox disabled />
                 <span>
-                  <span className="block font-medium text-foreground">Test mobile responsiveness</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Desktop, tablet, and mobile devices
-                  </span>
+                  <span className="block font-medium">Test mobile responsiveness</span>
+                  <span className="block text-xs">Coming soon</span>
                 </span>
               </label>
-              <label className="flex items-start gap-2 text-sm">
-                <Checkbox defaultChecked />
+              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Checkbox disabled />
                 <span>
-                  <span className="block font-medium text-foreground">Generate AI bug report</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Get detailed analysis and suggested fixes
-                  </span>
+                  <span className="block font-medium">Generate AI bug report</span>
+                  <span className="block text-xs">Coming soon</span>
                 </span>
               </label>
             </div>
@@ -246,16 +246,9 @@ export function NewTestRunForm({ projects, environments }: NewTestRunFormProps) 
           <p className="text-right text-xs text-muted-foreground">{instructions.length} / 1000</p>
         </section>
 
-        <div className="flex items-center justify-between rounded-lg border bg-muted/40 p-4">
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <AlertTriangle className="h-4 w-4" />
-            Queueing test runs isn&apos;t connected yet — this ships once the execution worker does.
-          </p>
-          <Button
-            disabled={!canSubmit}
-            onClick={() => toast.info('Queueing test runs is not connected yet.')}
-          >
-            Start Test Run
+        <div className="flex items-center justify-end rounded-lg border bg-muted/40 p-4">
+          <Button disabled={!canSubmit} onClick={handleStart}>
+            {isSubmitting ? 'Starting…' : 'Start Test Run'}
           </Button>
         </div>
       </div>

@@ -27,10 +27,13 @@ integrations, and AI analysis metadata. Lives in `apps/web`, backed by
 
 ### Queue
 
-**Redis + BullMQ.** Owns asynchronous job lifecycle: enqueueing a Test Run,
-retries, cancellation, concurrency limits, and job state. The control plane
-is a producer; workers are consumers. No test execution logic lives here —
-only scheduling and state.
+**Redis + BullMQ**, via `packages/queue` — the one place either side
+imports BullMQ from directly. Owns asynchronous job lifecycle: enqueueing
+a Test Run, retries, cancellation, concurrency limits, and job state. The
+control plane (`apps/web`) is a producer; workers are consumers. No test
+execution logic lives here — only scheduling and state; the database
+remains the source of truth for a run's actual status. See
+`docs/test-run-engine.md` for the full pipeline.
 
 ### Execution Plane
 
@@ -92,6 +95,7 @@ qavio/
 │   ├── ai/               AI reasoning layer (Phase 1 placeholder)
 │   ├── testing/          Shared Vitest config
 │   ├── integrations/     Issue-tracker export clients (Phase 1 placeholder)
+│   ├── queue/             BullMQ abstraction — queue name, job payload, producer, consumer, TestExecutor interface
 │   ├── config/           Shared tsconfig bases + env validation
 │   └── eslint-config/    Shared ESLint shareable configs
 ├── supabase/

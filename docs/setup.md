@@ -35,23 +35,33 @@ routes.
 # Postgres + Auth + Storage, matching supabase/migrations
 supabase start
 
-# Redis, for BullMQ
+# Redis, for BullMQ — either works:
+docker compose up -d redis      # from docker-compose.yml at the repo root
 docker run -p 6379:6379 redis:7-alpine
 ```
 
+`REDIS_URL=redis://localhost:6379` in `.env.local` (apps/web) and `.env`
+(workers/web) points both at this container — see
+`docs/environment-variables.md` and `docs/test-run-engine.md`.
+
 ## Running things
 
+A Test Run needs two processes running at once: the web app (which
+enqueues the job) and the worker (which executes it) — see
+`docs/test-run-engine.md` for the full pipeline.
+
 ```bash
-# Web app (http://localhost:3000)
+# Terminal 1 — web app (http://localhost:3000)
 pnpm --filter @qavio/web dev
+
+# Terminal 2 — the worker that actually runs Test Runs
+pnpm worker:web
 
 # Internal API (http://localhost:4000)
 pnpm --filter @qavio/api dev
 
-# Web functional QA worker
-pnpm --filter @qavio/worker-web dev
-
-# Everything Turborepo knows how to run in dev mode
+# Everything Turborepo knows how to run in dev mode (web, api, and every
+# worker at once, each in the same terminal's interleaved output)
 pnpm dev
 ```
 
