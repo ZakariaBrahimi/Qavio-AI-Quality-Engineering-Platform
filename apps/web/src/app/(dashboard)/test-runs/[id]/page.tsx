@@ -27,7 +27,19 @@ import { getCurrentOrganization } from '@/lib/organizations';
 import { TEST_RUN_TYPE_LABELS } from '@/lib/project-constants';
 import { getProject } from '@/lib/projects';
 import { hasPermission } from '@/lib/rbac';
-import { getTestResults, getTestRun } from '@/lib/test-runs';
+import { getArtifactsForResults, getTestResults, getTestRun, type ArtifactWithUrl } from '@/lib/test-runs';
+
+/** `pagesChecked` -> `Pages checked` — the summary's keys are producer-defined (see TestRun.summary), so this is a generic formatter, not a lookup table tied to Phase 7's specific keys. */
+function humanizeSummaryKey(key: string): string {
+  const spaced = key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function formatSummaryValue(value: unknown): string {
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number' || typeof value === 'string') return String(value);
+  return JSON.stringify(value);
+}
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const organization = await getCurrentOrganization();
@@ -55,7 +67,18 @@ export default async function TestRunDetailsPage({ params }: { params: { id: str
     getTestResults(organization.organizationId, testRun.id),
   ]);
 
+  const artifacts = await getArtifactsForResults(
+    organization.organizationId,
+    results.map((result) => result.id),
+  );
+  const artifactsByResult = artifacts.reduce<Record<string, ArtifactWithUrl[]>>((byResult, artifact) => {
+    (byResult[artifact.testResultId] ??= []).push(artifact);
+    return byResult;
+  }, {});
+
   const environment = environments.find((candidate) => candidate.id === testRun.environmentId) ?? null;
+  const isActive = testRun.status === 'starting' || testRun.status === 'running';
+  const summaryEntries = Object.entries(testRun.summary);
 
   return (
     <div className="space-y-6">
@@ -85,6 +108,10 @@ export default async function TestRunDetailsPage({ params }: { params: { id: str
             />
           </div>
         </div>
+
+        {isActive && testRun.progress ? (
+          <p className="text-sm text-muted-foreground">{testRun.progress}</p>
+        ) : null}
       </div>
 
       {testRun.status === 'failed' && testRun.errorMessage ? (
@@ -107,7 +134,7 @@ export default async function TestRunDetailsPage({ params }: { params: { id: str
                 description="Test results will appear here once this run has been executed by a worker."
               />
             ) : (
-              <TestResultTable results={results} />
+              <TestResultTable results={results} artifactsByResult={artifactsByResult} />
             )}
           </CardContent>
         </Card>
@@ -142,6 +169,18 @@ export default async function TestRunDetailsPage({ params }: { params: { id: str
               ]}
             />
           </div>
+
+          {summaryEntries.length > 0 ? (
+            <div className="rounded-lg border p-4">
+              <h2 className="mb-3 text-sm font-semibold text-foreground">Summary</h2>
+              <PropertyList
+                items={summaryEntries.map(([key, value]) => ({
+                  label: humanizeSummaryKey(key),
+                  value: formatSummaryValue(value),
+                }))}
+              />
+            </div>
+          ) : null}
         </aside>
       </div>
     </div>

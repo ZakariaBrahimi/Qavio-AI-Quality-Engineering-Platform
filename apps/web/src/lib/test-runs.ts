@@ -1,4 +1,4 @@
-import type { TestResult, TestResultStatus, TestRun, TestRunStatus, TestRunType } from '@qavio/types';
+import type { Artifact, ArtifactKind, TestResult, TestResultStatus, TestRun, TestRunStatus, TestRunType } from '@qavio/types';
 
 import { createClient } from '@/lib/supabase/server';
 
@@ -11,6 +11,8 @@ interface TestRunRow {
   type: TestRunType;
   status: TestRunStatus;
   configuration: unknown;
+  progress: string | null;
+  summary: unknown;
   error_message: string | null;
   triggered_by: string | null;
   started_at: string | null;
@@ -28,6 +30,8 @@ function toTestRun(row: TestRunRow): TestRun {
     type: row.type,
     status: row.status,
     configuration: (row.configuration as Record<string, unknown> | null) ?? {},
+    progress: row.progress,
+    summary: (row.summary as Record<string, unknown> | null) ?? {},
     errorMessage: row.error_message,
     triggeredBy: row.triggered_by,
     startedAt: row.started_at,
@@ -282,4 +286,73 @@ export async function getTestResults(organizationId: string, testRunId: string):
 
   if (error || !data) return [];
   return data.map(toTestResult);
+}
+
+interface ArtifactRow {
+  id: string;
+  organization_id: string;
+  test_result_id: string;
+  kind: ArtifactKind;
+  storage_bucket: string;
+  storage_path: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  checksum: string | null;
+  created_at: string;
+}
+
+export interface ArtifactWithUrl extends Artifact {
+  /** A short-lived signed URL for viewing the object directly from Storage — `null` if one couldn't be generated (e.g. the object went missing after its row was written). */
+  url: string | null;
+}
+
+/** Long enough to view a page's screenshots without the URL expiring mid-scroll, short enough that it's never a durable, shareable link to a private artifact. */
+const SIGNED_URL_EXPIRES_IN_SECONDS = 10 * 60;
+
+/**
+ * Artifacts (screenshots, JSON reports, …) for a set of test results,
+ * each with a short-lived signed URL. Row-level security on
+ * `storage.objects` (see supabase/migrations/20250201000700_storage.sql)
+ * still gates whether `createSignedUrl` succeeds at all — a member only
+ * ever gets a URL for an artifact their own organization owns, the same
+ * boundary as every other read in this file.
+ */
+export async function getArtifactsForResults(
+  organizationId: string,
+  testResultIds: string[],
+): Promise<ArtifactWithUrl[]> {
+  if (testResultIds.length === 0) return [];
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('artifacts')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .in('test_result_id', testResultIds)
+    .order('created_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  const rows = data as ArtifactRow[];
+  return Promise.all(
+    rows.map(async (row) => {
+      const { data: signed } = await supabase.storage
+        .from(row.storage_bucket)
+        .createSignedUrl(row.storage_path, SIGNED_URL_EXPIRES_IN_SECONDS);
+
+      return {
+        id: row.id,
+        organizationId: row.organization_id,
+        testResultId: row.test_result_id,
+        kind: row.kind,
+        storageBucket: row.storage_bucket,
+        storagePath: row.storage_path,
+        contentType: row.content_type,
+        sizeBytes: row.size_bytes,
+        checksum: row.checksum,
+        createdAt: row.created_at,
+        url: signed?.signedUrl ?? null,
+      };
+    }),
+  );
 }

@@ -29,6 +29,10 @@ export interface TestRun {
   status: TestRunStatus;
   /** Run-level configuration (coverage mode, instructions, options) — the queue payload never carries this; the worker loads it from this row instead. Phase 6 persists it but the placeholder executor doesn't interpret it yet. */
   configuration: Record<string, unknown>;
+  /** A short, human-readable status line written at a handful of named milestones while a run is executing (e.g. "Checking page 3 of up to 15: https://…") — display only, never gates a state transition. `null` before execution starts or once a run's own results speak for themselves. */
+  progress: string | null;
+  /** A completion summary (pages checked, passed/failed, cancelled, …) — shape is producer-defined (Phase 7's Playwright engine writes pagesChecked/pagesPassed/pagesFailed/cancelled; Phase 6's placeholder never writes one). `{}` until a run finishes. */
+  summary: Record<string, unknown>;
   /** Set only on a run-level failure (couldn't start, timed out, worker crashed) — not per-test-result detail, which lives on TestResult. */
   errorMessage: string | null;
   triggeredBy: Id | null;
