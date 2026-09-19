@@ -1284,9 +1284,11 @@ export type Database = {
           finished_at: string | null
           id: string
           organization_id: string
+          progress: string | null
           project_id: string
           started_at: string | null
           status: Database["public"]["Enums"]["test_run_status"]
+          summary: Json
           test_suite_id: string | null
           triggered_by: string | null
           type: Database["public"]["Enums"]["test_run_type"]
@@ -1299,9 +1301,11 @@ export type Database = {
           finished_at?: string | null
           id?: string
           organization_id: string
+          progress?: string | null
           project_id: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["test_run_status"]
+          summary?: Json
           test_suite_id?: string | null
           triggered_by?: string | null
           type?: Database["public"]["Enums"]["test_run_type"]
@@ -1314,9 +1318,11 @@ export type Database = {
           finished_at?: string | null
           id?: string
           organization_id?: string
+          progress?: string | null
           project_id?: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["test_run_status"]
+          summary?: Json
           test_suite_id?: string | null
           triggered_by?: string | null
           type?: Database["public"]["Enums"]["test_run_type"]

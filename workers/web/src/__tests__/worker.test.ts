@@ -98,7 +98,7 @@ describe('processTestRunJob', () => {
 
     const result: TestExecutionResult = {
       status: 'completed',
-      results: [{ name: 'Basic page load', status: 'passed', durationMs: 120 }],
+      results: [{ id: 'result-1', name: 'Basic page load', status: 'passed', durationMs: 120 }],
     };
     const executor = fakeExecutor(result);
 

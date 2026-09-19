@@ -7,4 +7,10 @@ export {
   type TestRunWorkerOptions,
   type TestRunJobProcessor,
 } from './consumer';
-export type { TestExecutor, TestExecutionContext, TestExecutionResult, TestExecutionResultItem } from './executor';
+export type {
+  TestExecutor,
+  TestExecutionContext,
+  TestExecutionResult,
+  TestExecutionResultItem,
+  TestExecutionArtifact,
+} from './executor';

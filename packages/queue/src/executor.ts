@@ -27,10 +27,37 @@ export interface TestExecutionContext {
 }
 
 export interface TestExecutionResultItem {
+  /**
+   * Client-generated (the executor calls `crypto.randomUUID()`), not left
+   * to the database default — an artifact needs a stable id to reference
+   * *before* the result row has actually been inserted, and generating it
+   * up front avoids a round trip. Purely random, not deterministic from
+   * the run id, so nothing collides across retries (the previous
+   * attempt's rows are already deleted before these are inserted — see
+   * `writeTestResults`).
+   */
+  id: string;
   name: string;
   status: TestResultStatus;
   durationMs: number;
   errorMessage?: string | null;
+}
+
+/**
+ * One piece of evidence (a screenshot, a log, …) produced alongside a
+ * result. The executor only returns the raw bytes and metadata — it
+ * never touches Supabase Storage or the `artifacts` table directly; the
+ * worker's repository layer owns all persistence, same as it does for
+ * `TestExecutionResultItem` (see docs/test-run-engine.md).
+ */
+export interface TestExecutionArtifact {
+  /** Which result this evidence belongs to — `artifacts.test_result_id` is a required FK, so every artifact must reference a result from the same `TestExecutionResult.results` array. */
+  resultId: string;
+  kind: 'screenshot' | 'video' | 'trace' | 'log' | 'dom_snapshot' | 'json_report';
+  /** Just the filename (e.g. `about.png`) — the worker builds the full `organizations/{orgId}/projects/{projectId}/test-runs/{testRunId}/{filename}` storage path. */
+  filename: string;
+  contentType: string;
+  data: Buffer;
 }
 
 export interface TestExecutionResult {
@@ -38,6 +65,9 @@ export interface TestExecutionResult {
   /** Run-level failure reason (couldn't start, timed out) — set only when `status` is `'failed'`. */
   errorMessage?: string;
   results: TestExecutionResultItem[];
+  artifacts?: TestExecutionArtifact[];
+  /** A completion summary (checks passed/failed, pages visited, …) — persisted verbatim to `test_runs.summary`. Optional: PlaceholderTestExecutor doesn't produce one. */
+  summary?: Record<string, unknown>;
 }
 
 export interface TestExecutor {

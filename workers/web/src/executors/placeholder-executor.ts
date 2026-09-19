@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { TestExecutionContext, TestExecutionResult, TestExecutor } from '@qavio/queue';
 
 export interface DeterministicTestExecutorOptions {
@@ -70,6 +72,7 @@ export class PlaceholderTestExecutor implements TestExecutor {
         errorMessage: 'Deterministic check failed (forceFailure test configuration).',
         results: [
           {
+            id: randomUUID(),
             name: 'Deterministic check',
             status: 'failed',
             durationMs: actualDurationMs,
@@ -82,7 +85,7 @@ export class PlaceholderTestExecutor implements TestExecutor {
     return {
       status: 'completed',
       results: [
-        { name: 'Deterministic check', status: 'passed', durationMs: actualDurationMs, errorMessage: null },
+        { id: randomUUID(), name: 'Deterministic check', status: 'passed', durationMs: actualDurationMs, errorMessage: null },
       ],
     };
   }

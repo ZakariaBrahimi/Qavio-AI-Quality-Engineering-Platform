@@ -23,7 +23,13 @@ describe('PlaceholderTestExecutor', () => {
 
     expect(result.status).toBe('completed');
     expect(result.results).toEqual([
-      { name: 'Deterministic check', status: 'passed', durationMs: expect.any(Number), errorMessage: null },
+      {
+        id: expect.any(String),
+        name: 'Deterministic check',
+        status: 'passed',
+        durationMs: expect.any(Number),
+        errorMessage: null,
+      },
     ]);
   });
 
@@ -41,7 +47,13 @@ describe('PlaceholderTestExecutor', () => {
     expect(result.status).toBe('failed');
     expect(result.errorMessage).toContain('forceFailure');
     expect(result.results).toEqual([
-      { name: 'Deterministic check', status: 'failed', durationMs: expect.any(Number), errorMessage: 'forceFailure=true' },
+      {
+        id: expect.any(String),
+        name: 'Deterministic check',
+        status: 'failed',
+        durationMs: expect.any(Number),
+        errorMessage: 'forceFailure=true',
+      },
     ]);
   });
 

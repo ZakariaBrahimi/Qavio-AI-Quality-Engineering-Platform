@@ -1,4 +1,4 @@
-import type { createSupabaseAdminClient, Database } from '@qavio/database';
+import type { createSupabaseAdminClient, Database, Json } from '@qavio/database';
 import { TEST_RUN_QUEUE_NAME, type TestExecutionResultItem } from '@qavio/queue';
 import { assertTestRunTransition, type TestRunStatus } from '@qavio/types';
 
@@ -47,10 +47,79 @@ export async function loadEnvironmentBaseUrl(
   return data?.base_url ?? null;
 }
 
+export interface ExecutionTarget {
+  baseUrl: string;
+  projectPlatform: Database['public']['Enums']['project_platform'];
+}
+
+/**
+ * What `PlaywrightTestExecutor` needs to know it's allowed to run at all —
+ * loaded fresh from the database (never the queue payload), scoped to the
+ * organization the job claims, and never assumed: a missing/archived
+ * project or environment, or an environment that doesn't actually belong
+ * to that project, all come back `null` rather than throwing, so the
+ * caller can fail the run with one clear "target not allowed" message
+ * instead of leaking a raw query error.
+ */
+export async function loadExecutionTarget(
+  admin: AdminClient,
+  organizationId: string,
+  projectId: string,
+  environmentId: string,
+): Promise<ExecutionTarget | null> {
+  const [{ data: project, error: projectError }, { data: environment, error: environmentError }] = await Promise.all([
+    admin
+      .from('projects')
+      .select('platform')
+      .eq('organization_id', organizationId)
+      .eq('id', projectId)
+      .is('archived_at', null)
+      .maybeSingle(),
+    admin
+      .from('environments')
+      .select('base_url')
+      .eq('organization_id', organizationId)
+      .eq('project_id', projectId)
+      .eq('id', environmentId)
+      .is('archived_at', null)
+      .maybeSingle(),
+  ]);
+
+  if (projectError) throw new Error(`Failed to load project ${projectId}: ${projectError.message}`);
+  if (environmentError) throw new Error(`Failed to load environment ${environmentId}: ${environmentError.message}`);
+  if (!project || !environment) return null;
+
+  return { baseUrl: environment.base_url, projectPlatform: project.platform };
+}
+
+/**
+ * A short, human-readable status line for the dashboard — never gates a
+ * state transition, purely a display hint. Written at a handful of named
+ * milestones (not per-page-event), so this rides the same Realtime
+ * subscription the status badge already uses without flooding it.
+ */
+export async function updateProgress(
+  admin: AdminClient,
+  organizationId: string,
+  testRunId: string,
+  message: string,
+): Promise<void> {
+  const { error } = await admin
+    .from('test_runs')
+    .update({ progress: message })
+    .eq('id', testRunId)
+    .eq('organization_id', organizationId);
+
+  if (error) {
+    throw new Error(`Failed to update progress for test run ${testRunId}: ${error.message}`);
+  }
+}
+
 export interface TransitionPatch {
   startedAt?: string | null;
   finishedAt?: string | null;
   errorMessage?: string | null;
+  summary?: Record<string, unknown>;
 }
 
 /**
@@ -74,6 +143,7 @@ export async function transitionTestRun(
       ...(patch.startedAt !== undefined ? { started_at: patch.startedAt } : {}),
       ...(patch.finishedAt !== undefined ? { finished_at: patch.finishedAt } : {}),
       ...(patch.errorMessage !== undefined ? { error_message: patch.errorMessage } : {}),
+      ...(patch.summary !== undefined ? { summary: patch.summary as Json } : {}),
     })
     .eq('id', current.id)
     .eq('organization_id', current.organization_id)
@@ -112,6 +182,7 @@ export async function writeTestResults(
 
   const { error: insertError } = await admin.from('test_results').insert(
     results.map((result) => ({
+      id: result.id,
       organization_id: organizationId,
       test_run_id: testRunId,
       test_case_id: null,
@@ -124,6 +195,75 @@ export async function writeTestResults(
 
   if (insertError) {
     throw new Error(`Failed to write test results for run ${testRunId}: ${insertError.message}`);
+  }
+}
+
+export interface ArtifactToWrite {
+  resultId: string;
+  kind: Database['public']['Enums']['artifact_kind'];
+  filename: string;
+  contentType: string;
+  data: Buffer;
+}
+
+/**
+ * Uploads each artifact's bytes to the `artifacts` Storage bucket (path
+ * convention: `organizations/{orgId}/projects/{projectId}/test-runs/{testRunId}/{filename}`
+ * — see supabase/migrations/20250201000700_storage.sql) and records its
+ * metadata in the `artifacts` table, referencing the result it belongs
+ * to. Uploads are attempted independently — one failed upload doesn't
+ * block persisting the others; every failure is collected and thrown
+ * together so the caller sees the whole picture, not just the first one.
+ *
+ * Not fully idempotent on a retry: a re-run's fresh `test_results` rows
+ * (new client-generated ids) mean the old artifact *rows* are cascade-
+ * deleted automatically when `writeTestResults` clears the previous
+ * attempt's results, but the old attempt's Storage *blobs* are not
+ * proactively deleted — a bounded, documented resource leak on retry
+ * (rare), not a correctness issue: nothing ever displays or references
+ * an orphaned blob, since its DB row is gone.
+ */
+export async function writeArtifacts(
+  admin: AdminClient,
+  organizationId: string,
+  projectId: string,
+  testRunId: string,
+  artifacts: ArtifactToWrite[],
+): Promise<void> {
+  if (artifacts.length === 0) return;
+
+  const errors: string[] = [];
+
+  await Promise.all(
+    artifacts.map(async (artifact) => {
+      const storagePath = `organizations/${organizationId}/projects/${projectId}/test-runs/${testRunId}/${artifact.filename}`;
+
+      const { error: uploadError } = await admin.storage.from('artifacts').upload(storagePath, artifact.data, {
+        contentType: artifact.contentType,
+        upsert: false,
+      });
+      if (uploadError) {
+        errors.push(`upload ${artifact.filename}: ${uploadError.message}`);
+        return;
+      }
+
+      const { error: insertError } = await admin.from('artifacts').insert({
+        organization_id: organizationId,
+        test_result_id: artifact.resultId,
+        kind: artifact.kind,
+        storage_bucket: 'artifacts',
+        storage_path: storagePath,
+        content_type: artifact.contentType,
+        size_bytes: artifact.data.byteLength,
+      });
+      if (insertError) {
+        errors.push(`record ${artifact.filename}: ${insertError.message}`);
+      }
+    }),
+  );
+
+  if (errors.length > 0) {
+    throw new Error(`Failed to write ${errors.length} of ${artifacts.length} artifact(s): ${errors.join('; ')}`);
   }
 }
 
