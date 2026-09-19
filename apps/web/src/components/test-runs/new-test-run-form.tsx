@@ -100,8 +100,16 @@ export function NewTestRunForm({ projects, environments }: NewTestRunFormProps) 
     }
 
     toast.success('Test run started.');
+    // No router.refresh() here: this is a brand-new dynamic route the
+    // client has never visited, so router.push already fetches its RSC
+    // payload fresh — there's no stale cache to bust. Calling refresh()
+    // immediately afterward instead raced that in-flight navigation
+    // against a refresh of the *previous* route, which is what actually
+    // produced "Couldn't load this test run" right after starting a run
+    // (a client-side router-reducer race, not a server error — see
+    // docs/test-run-engine.md's Realtime section and commit 442fcd0's own
+    // writeup of the same error surfacing from a different cause).
     router.push(`/test-runs/${result.data.testRunId}`);
-    router.refresh();
   }
 
   return (
