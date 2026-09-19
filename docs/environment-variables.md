@@ -21,7 +21,7 @@ configured yet (see `apps/web/src/lib/env.ts` for the pattern).
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`                     | ✅               | ✅                       |         | Safe: protected by RLS                           |
 | `SUPABASE_SERVICE_ROLE_KEY`                         | ❌               | ✅                       | ✅      | Bypasses RLS — server/worker only                |
 | `SUPABASE_DB_URL`                                   | ❌               | ✅                       |         | Direct Postgres connection (migrations, scripts) |
-| `REDIS_URL`                                         | ❌               | ✅                       | ✅      | BullMQ connection                                |
+| `REDIS_URL`                                         | ❌               |                          | ✅      | BullMQ connection — workers/\* only, not apps/web |
 | `ANTHROPIC_API_KEY`                                 | ❌               | ✅ (future `workers/ai`) |         | AI provider credential                           |
 | `WORKER_CONCURRENCY`                                | ❌               |                          | ✅      | BullMQ worker concurrency                        |
 | `PLAYWRIGHT_HEADLESS`                               | ❌               |                          | ✅      | `true`/`false`                                   |
