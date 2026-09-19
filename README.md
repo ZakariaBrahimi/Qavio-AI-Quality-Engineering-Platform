@@ -96,6 +96,9 @@ Details, including running Supabase and Redis locally: `docs/setup.md`.
 - [`docs/ci.md`](docs/ci.md) — what GitHub Actions runs and why
 - [`docs/conventions.md`](docs/conventions.md) — TypeScript, naming,
   structure, and linting conventions
+- [`docs/graphify.md`](docs/graphify.md) — the repository knowledge graph:
+  what it is, how to build/refresh it, what's included/excluded, and
+  source-of-truth rules for using it
 
 ## What's explicitly not here yet
 

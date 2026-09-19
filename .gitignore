@@ -44,3 +44,9 @@ pnpm-debug.log*
 # Misc
 .vercel/
 .env.production
+
+# graphify — graphify-out/ itself is meant to be committed (docs/graphify.md);
+# only its local-machine-specific/local-only files are excluded.
+graphify-out/cost.json
+graphify-out/.graphify_python
+graphify-out/.graphify_root
