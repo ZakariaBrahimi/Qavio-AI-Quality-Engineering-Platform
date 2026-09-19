@@ -1,0 +1,52 @@
+# Keeps the Docker build context (repo root — see workers/web/Dockerfile)
+# small and, critically, makes sure nothing holding real credentials can
+# ever be copied into an image layer even by an unqualified `COPY . .`.
+# Mirrors .gitignore's own exclusions.
+
+# Dependencies (reinstalled fresh inside the image)
+node_modules/
+.pnpm-store/
+
+# Build outputs (rebuilt fresh inside the image)
+.next/
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Environment — NEVER let a filled-in env file reach a build context.
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Supabase local dev state
+supabase/.branches/
+supabase/.temp/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# VCS
+.git/
+.github/
+
+# Misc
+.vercel/

@@ -20,11 +20,12 @@ pattern).
 | `NEXT_PUBLIC_APP_URL`                               | ✅               | ✅                       |         | Base URL of the web app                          |
 | `NEXT_PUBLIC_SUPABASE_URL`                          | ✅               | ✅                       |         | Safe: protected by RLS                           |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`                     | ✅               | ✅                       |         | Safe: protected by RLS                           |
+| `SUPABASE_URL`                                      | ❌               |                          | ✅      | Same project as `NEXT_PUBLIC_SUPABASE_URL`, read under a non-prefixed name so workers never depend on a `NEXT_PUBLIC_*` var |
 | `SUPABASE_SERVICE_ROLE_KEY`                         | ❌               | ✅                       | ✅      | Bypasses RLS — server/worker only                |
 | `SUPABASE_DB_URL`                                   | ❌               | ✅                       |         | Direct Postgres connection (migrations, scripts) |
 | `REDIS_URL`                                         | ❌               | ✅ (queue producer only) | ✅      | BullMQ connection — see note below                |
 | `ANTHROPIC_API_KEY`                                 | ❌               | ✅ (future `workers/ai`) |         | AI provider credential                           |
-| `WORKER_CONCURRENCY`                                | ❌               |                          | ✅      | BullMQ worker concurrency (default `2`)          |
+| `WORKER_CONCURRENCY`                                | ❌               |                          | ✅      | BullMQ worker concurrency (default `2`; set to `1` for the first Railway deployment — see docs/railway-deployment.md) |
 | `TEST_RUN_TIMEOUT_MS`                               | ❌               |                          | ✅      | Hard ceiling on one run's execution (default `300000`) |
 | `PLAYWRIGHT_LOCAL_TEST_TARGET_ALLOWLIST`            | ❌               |                          | ✅      | Local-dev-only SSRF allowlist for `apps/qa-fixture` — see below. Leave empty everywhere else. |
 | `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET`             | ❌               | ✅ (future)              |         | Jira OAuth app credentials                       |

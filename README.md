@@ -78,6 +78,9 @@ Details, including running Supabase and Redis locally: `docs/setup.md`.
 - [`docs/playwright-qa-engine.md`](docs/playwright-qa-engine.md) — the real
   browser-based QA engine: crawling, SSRF protection, functional checks,
   artifacts, local development against `apps/qa-fixture`
+- [`docs/railway-deployment.md`](docs/railway-deployment.md) — deploying
+  `workers/web` to Railway: the Docker build, Playwright/Chromium runtime,
+  environment variables, graceful shutdown
 - [`docs/database.md`](docs/database.md) — schema, multi-tenant model,
   roles, RLS, credentials/secrets, audit logging
 - [`docs/authentication.md`](docs/authentication.md) — Supabase Auth,

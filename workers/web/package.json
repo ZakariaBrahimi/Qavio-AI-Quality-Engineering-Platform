@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --sourcemap --outfile=dist/index.js --external:playwright",
     "start": "node dist/index.js",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
@@ -26,6 +26,7 @@
     "@qavio/eslint-config": "workspace:*",
     "@qavio/testing": "workspace:*",
     "@types/node": "^20.14.0",
+    "esbuild": "^0.24.0",
     "tsx": "^4.19.1",
     "typescript": "^5.5.4",
     "vitest": "^2.1.1"
