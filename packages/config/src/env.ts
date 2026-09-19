@@ -69,8 +69,4 @@ export const workerEnvSchema = {
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   /** Hard ceiling on one Test Run's execution time — see docs/test-run-engine.md's Timeouts section. A test must not be allowed to run forever. */
   TEST_RUN_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
-  PLAYWRIGHT_HEADLESS: z
-    .enum(['true', 'false'])
-    .default('true')
-    .transform((value) => value === 'true'),
 };

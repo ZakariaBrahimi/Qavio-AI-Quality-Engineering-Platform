@@ -3,18 +3,13 @@ import { createSupabaseAdminClient } from '@qavio/database';
 
 import { PlaceholderTestExecutor } from './executors/placeholder-executor';
 import { logger } from './logger';
-import * as repository from './repository';
 import { createTestRunWorker } from './worker';
 
 const env = createEnv(workerEnvSchema);
 
 const admin = createSupabaseAdminClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
-const executor = new PlaceholderTestExecutor({
-  headless: env.PLAYWRIGHT_HEADLESS,
-  loadBaseUrl: (context) =>
-    repository.loadEnvironmentBaseUrl(admin, context.organizationId, context.projectId, context.environmentId),
-});
+const executor = new PlaceholderTestExecutor();
 
 const worker = createTestRunWorker({
   redisUrl: env.REDIS_URL,

@@ -13,6 +13,8 @@ export interface TestExecutionContext {
   projectId: string;
   environmentId: string;
   type: TestRunType;
+  /** The run's `test_runs.configuration` row, loaded by the worker — never carried in the queue payload itself (see job-payload.ts). Phase 6's deterministic executor reads a couple of test-only keys from this (see workers/web's PlaceholderTestExecutor); a real executor is free to ignore it entirely. */
+  configuration: Record<string, unknown>;
   /**
    * Aborted when the run is cancelled or its timeout elapses. An executor
    * should check `signal.aborted` between test cases and stop promptly —

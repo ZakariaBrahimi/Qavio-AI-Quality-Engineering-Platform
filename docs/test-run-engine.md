@@ -7,13 +7,14 @@ Qavio Web  →  Supabase (test_runs row)  →  BullMQ  →  Redis  →  Web Work
 ```
 
 This phase does **not** implement the real Playwright QA engine (crawling,
-assertions, visual/responsive/security checks) — that's Phase 7. What it
-does implement is the reliable execution *pipeline* Phase 7 will plug into:
-a real `test_runs` row gets created, queued, picked up by a separate
-worker process, and driven through its lifecycle with retries, timeouts,
+assertions, visual/responsive/security checks) — that's Phase 7, and no
+Playwright is used anywhere in this phase's execution path. What it does
+implement is the reliable execution *pipeline* Phase 7 will plug into: a
+real `test_runs` row gets created, queued, picked up by a separate worker
+process, and driven through its lifecycle with retries, timeouts,
 cancellation, and idempotency all handled — currently executing a
-placeholder check (`PlaceholderTestExecutor`, "does the page load"), not a
-full QA engine.
+deterministic, configurable-duration placeholder check
+(`PlaceholderTestExecutor`), not a full QA engine.
 
 ## Redis
 
@@ -112,9 +113,10 @@ workers/web/src/
 ├── worker.ts                       Orchestration (processTestRunJob) + BullMQ wiring (createTestRunWorker)
 ├── repository.ts                   All test_runs/test_run_jobs/test_results/environments reads & writes
 ├── logger.ts                       Structured JSON logging
-├── executors/placeholder-executor.ts   Phase 6's stand-in for the real QA engine
-└── checks/basic-page-check.ts      The actual check the placeholder runs (page loads, 2xx/3xx)
+└── executors/placeholder-executor.ts   Phase 6's deterministic stand-in for the real QA engine
 ```
+
+(`checks/basic-page-check.ts`, a Phase 1 Playwright-based check, still exists but is not called by Phase 6's executor — see **TestExecutor abstraction** below.)
 
 `processTestRunJob` (exported separately from `createTestRunWorker` so it's
 unit-testable without a real Redis connection) does, per job:
@@ -150,8 +152,15 @@ interface TestExecutor {
 
 `worker.ts`'s orchestration never talks to Playwright (or anything else)
 directly — it calls `executor.execute(...)`. Phase 6 wires a
-`PlaceholderTestExecutor` (loads the environment's `base_url`, runs
-`runBasicPageCheck`); Phase 7 will add a `PlaywrightTestExecutor`
+`PlaceholderTestExecutor`: no browser, no Playwright — it simulates work
+for a configurable duration (`test_runs.configuration.durationMs`,
+default 250ms), checking `context.signal` between steps so cancellation
+actually interrupts it, then reports success. A test-only
+`configuration.forceFailure: true` (read from the same server-validated
+`configuration` column every other run setting comes from — never a
+client-supplied header or query param) makes it report a deterministic
+failure instead, for exercising the failure/retry paths without relying
+on network flakiness. Phase 7 will add a `PlaywrightTestExecutor`
 implementing the same interface. The orchestration code does not change
 when that lands — only `index.ts`'s executor wiring does.
 
@@ -188,14 +197,17 @@ forever — the race's own rejection wins regardless.
   actually removes the BullMQ job (`removeQueuedTestRunJob`, only while
   its state is `waiting`/`delayed`) so it never gets a chance to run, and
   flips `test_runs.status` to `cancelled`.
-- **Already running:** this phase can't forcibly stop an in-flight
-  executor — `cancelTestRun` still flips the database status, and
-  `worker.ts` re-checks the row's status before writing a final
-  `completed`/`failed` so a concurrent cancellation is never clobbered.
-  The `AbortSignal` plumbed through `TestExecutionContext` exists so a
-  *future* Playwright executor (Phase 7) can honor real cancellation
-  mid-run — Phase 6 doesn't pretend a placeholder check can be interrupted
-  partway through the one page load it does.
+- **Already running:** `cancelTestRun` flips the database status, and
+  `PlaceholderTestExecutor` genuinely honors it — it checks
+  `context.signal` between each simulated-work step (25ms increments) and
+  returns a `failed` result as soon as it sees the run cancelled, rather
+  than running to completion regardless. `worker.ts` also re-checks the
+  row's status before writing a final `completed`/`failed`, so a
+  cancellation racing the very end of execution is never clobbered
+  either way. A future Playwright executor (Phase 7) gets the same
+  `AbortSignal` and should honor it the same way — but this isn't a
+  placeholder promise: Phase 6's own executor is proven to stop mid-run
+  (see the Cancellation test in the verification report).
 
 ## Idempotency
 
@@ -254,21 +266,22 @@ still has the job, it just has no consumer yet.
 ## Production deployment
 
 Workers must be independently deployable and scalable from `apps/web` —
-**never run Playwright (or any test execution) inside the Vercel/Next.js
-request process.** `apps/web` only ever enqueues a job and returns; all
-execution happens in a separate long-running Node process
-(`workers/web`), deployed to a platform that supports that (a container
-host, a VM, a dedicated worker service — not a serverless function with a
-request timeout). That process needs `REDIS_URL`,
-`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`, and optionally
-`WORKER_CONCURRENCY`/`TEST_RUN_TIMEOUT_MS`/`PLAYWRIGHT_HEADLESS` (see
+**never run test execution (Playwright or otherwise) inside the
+Vercel/Next.js request process, today or once Phase 7 adds Playwright.**
+`apps/web` only ever enqueues a job and returns; all execution happens in
+a separate long-running Node process (`workers/web`), deployed to a
+platform that supports that (a container host, a VM, a dedicated worker
+service — not a serverless function with a request timeout). That
+process needs `REDIS_URL`, `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`,
+and optionally `WORKER_CONCURRENCY`/`TEST_RUN_TIMEOUT_MS` (see
 `docs/environment-variables.md`). Point `apps/web`'s `REDIS_URL` at the
 same Redis instance so producer and consumer share one queue.
 
 ## What Phase 6 deliberately does not implement
 
-Full Playwright test execution, website crawling, AI test generation, AI
-failure analysis, visual comparison, mobile testing, security scanning, AI
-code fixes — all Phase 7+. `PlaceholderTestExecutor` proves the pipeline
-end-to-end with one honest, deterministic check ("does the page load");
-Phase 7 replaces just that class, not the pipeline around it.
+Playwright entirely (not even a single page-load check), website
+crawling, AI test generation, AI failure analysis, visual comparison,
+mobile testing, security scanning, AI code fixes — all Phase 7+.
+`PlaceholderTestExecutor` proves the pipeline end-to-end with one honest,
+deterministic, configurable-duration simulated check; Phase 7 replaces
+just that class, not the pipeline around it.

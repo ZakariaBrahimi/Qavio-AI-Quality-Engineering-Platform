@@ -34,6 +34,7 @@ export interface TestRunWorkerOptions {
 async function executeWithTimeout(
   executor: TestExecutor,
   payload: TestRunJobPayload,
+  configuration: Record<string, unknown>,
   timeoutMs: number,
 ): Promise<TestExecutionResult> {
   const controller = new AbortController();
@@ -52,6 +53,7 @@ async function executeWithTimeout(
           projectId: payload.projectId,
           environmentId: payload.environmentId,
           type: payload.type,
+          configuration,
           signal: controller.signal,
         })
         .then(resolve, reject);
@@ -113,7 +115,8 @@ export async function processTestRunJob(
 
   try {
     const started = await advanceToRunning(admin, run);
-    const result = await executeWithTimeout(executor, payload, timeoutMs);
+    const configuration = (run.configuration as Record<string, unknown> | null) ?? {};
+    const result = await executeWithTimeout(executor, payload, configuration, timeoutMs);
     await repository.writeTestResults(admin, payload.organizationId, payload.testRunId, result.results);
 
     const latest = await repository.loadTestRun(admin, payload.organizationId, payload.testRunId);

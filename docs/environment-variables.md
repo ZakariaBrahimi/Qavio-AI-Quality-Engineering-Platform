@@ -26,7 +26,6 @@ pattern).
 | `ANTHROPIC_API_KEY`                                 | ❌               | ✅ (future `workers/ai`) |         | AI provider credential                           |
 | `WORKER_CONCURRENCY`                                | ❌               |                          | ✅      | BullMQ worker concurrency (default `2`)          |
 | `TEST_RUN_TIMEOUT_MS`                               | ❌               |                          | ✅      | Hard ceiling on one run's execution (default `300000`) |
-| `PLAYWRIGHT_HEADLESS`                               | ❌               |                          | ✅      | `true`/`false`                                   |
 | `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET`             | ❌               | ✅ (future)              |         | Jira OAuth app credentials                       |
 | `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` | ❌               | ✅ (future)              |         | GitHub OAuth app credentials                     |
 
