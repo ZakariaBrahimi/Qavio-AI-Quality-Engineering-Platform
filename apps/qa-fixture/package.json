@@ -1,0 +1,26 @@
+{
+  "name": "@qavio/qa-fixture",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A minimal, deliberately imperfect web app used to exercise Phase 7's Playwright QA engine end to end — a real HTTP server, not a mock. Never deployed; local/dev use only.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@qavio/config": "workspace:*",
+    "@qavio/eslint-config": "workspace:*",
+    "@qavio/testing": "workspace:*",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}

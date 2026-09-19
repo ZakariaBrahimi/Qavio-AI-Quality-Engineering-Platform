@@ -64,6 +64,30 @@ importers:
         specifier: ^2.1.1
         version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
 
+  apps/qa-fixture:
+    devDependencies:
+      '@qavio/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@qavio/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@qavio/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      tsx:
+        specifier: ^4.19.1
+        version: 4.23.13
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.1
+        version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
+
   apps/web:
     dependencies:
       '@hookform/resolvers':
