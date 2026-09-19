@@ -10,10 +10,27 @@ import { enqueueTestRun as enqueueTestRunJob, removeQueuedTestRunJob } from '@/l
 import { hasPermission } from '@/lib/rbac';
 import { createClient } from '@/lib/supabase/server';
 
+/**
+ * Test-only knobs for Phase 6's deterministic executor (never Playwright
+ * config, never anything that reaches outside this one run's own
+ * simulated pass/fail outcome). Deliberately not wired into
+ * NewTestRunForm's UI — this only exists for QA to script controlled
+ * failure/duration scenarios directly against the Server Action, gated
+ * by the exact same QA+/org-ownership checks as every other field here.
+ */
+const testConfigurationSchema = z
+  .object({
+    durationMs: z.number().int().min(0).max(60_000).optional(),
+    forceFailure: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
 const createTestRunSchema = z.object({
   projectId: z.string().uuid(),
   environmentId: z.string().uuid(),
   type: z.enum(['functional', 'visual', 'responsive', 'security']),
+  configuration: testConfigurationSchema,
 });
 
 /**
@@ -27,6 +44,7 @@ export async function createTestRun(input: {
   projectId: string;
   environmentId: string;
   type: string;
+  configuration?: { durationMs?: number; forceFailure?: boolean };
 }): Promise<ActionResult<{ testRunId: string }>> {
   const parsed = createTestRunSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input.');
@@ -73,6 +91,7 @@ export async function createTestRun(input: {
       type: parsed.data.type,
       status: 'created',
       triggered_by: user?.id ?? null,
+      ...(parsed.data.configuration ? { configuration: parsed.data.configuration } : {}),
     })
     .select('id')
     .single();

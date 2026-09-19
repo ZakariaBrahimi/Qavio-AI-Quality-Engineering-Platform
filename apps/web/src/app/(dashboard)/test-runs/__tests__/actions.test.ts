@@ -11,12 +11,16 @@ const mockFromResults = vi.hoisted(
   () => new Map<string, { data?: unknown; error?: unknown }>(),
 );
 const mockEqCalls = vi.hoisted(() => [] as Array<{ table: string; column: string; value: unknown }>);
+const mockInsertCalls = vi.hoisted(() => [] as Array<{ table: string; row: unknown }>);
 
 /** Same chainable fake as projects/[id]/__tests__/actions.test.ts — records every .eq() so tests can assert org/project scoping, and resolves however far the action's chain walks (.single()/.maybeSingle()/awaited directly). */
 function chain(table: string, result: { data?: unknown; error?: unknown }) {
   const node: Record<string, unknown> = {
     select: () => node,
-    insert: () => node,
+    insert: (row: unknown) => {
+      mockInsertCalls.push({ table, row });
+      return node;
+    },
     update: () => node,
     is: () => node,
     eq: (column: string, value: unknown) => {
@@ -68,6 +72,7 @@ beforeEach(() => {
   mockRpc.mockResolvedValue({ data: null, error: null });
   mockFromResults.clear();
   mockEqCalls.length = 0;
+  mockInsertCalls.length = 0;
   mockGetUser.mockResolvedValue({ data: { user: { id: 'actor-1' } } });
   mockEnqueueTestRun.mockResolvedValue(undefined);
   mockRemoveQueuedTestRunJob.mockResolvedValue(false);
@@ -149,6 +154,37 @@ describe('createTestRun — cross-org scoping and happy path', () => {
       expect.objectContaining({ testRunId: 'run-1', organizationId: 'org-1', type: 'functional' }),
     );
     expect(mockEqCalls).toContainEqual({ table: 'test_runs', column: 'organization_id', value: 'org-1' });
+  });
+
+  it('passes an optional test-only configuration (durationMs/forceFailure) through to the insert', async () => {
+    mockGetCurrentOrganization.mockResolvedValue(qaOrg);
+    mockFromResults.set('projects', { data: { id: 'proj-1' }, error: null });
+    mockFromResults.set('environments', { data: { id: 'env-1' }, error: null });
+    mockFromResults.set('test_runs', { data: { id: 'run-1' }, error: null });
+
+    const result = await createTestRun({ ...validInput, configuration: { durationMs: 500, forceFailure: true } });
+
+    expect(result.ok).toBe(true);
+    expect(mockInsertCalls).toContainEqual(
+      expect.objectContaining({ table: 'test_runs', row: expect.objectContaining({ configuration: { durationMs: 500, forceFailure: true } }) }),
+    );
+  });
+
+  it('rejects an unrecognized configuration key (only durationMs/forceFailure are allowed)', async () => {
+    mockGetCurrentOrganization.mockResolvedValue(qaOrg);
+    const result = await createTestRun({
+      ...validInput,
+      configuration: { unexpectedKey: true } as unknown as { durationMs?: number },
+    });
+    expect(result.ok).toBe(false);
+    expect(mockEnqueueTestRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects a configuration.durationMs above the 60s cap', async () => {
+    mockGetCurrentOrganization.mockResolvedValue(qaOrg);
+    const result = await createTestRun({ ...validInput, configuration: { durationMs: 120_000 } });
+    expect(result.ok).toBe(false);
+    expect(mockEnqueueTestRun).not.toHaveBeenCalled();
   });
 
   it('marks the run failed instead of leaving it stuck in "created" when enqueueing throws', async () => {

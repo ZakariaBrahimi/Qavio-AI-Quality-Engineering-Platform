@@ -25,41 +25,87 @@ export interface TestRunWorkerOptions {
   executor: TestExecutor;
 }
 
+/** How often to check the database for an external cancellation while a job is running. */
+const CANCELLATION_POLL_MS = 1_000;
 /**
- * Races the executor against `timeoutMs`, aborting its signal *and*
- * rejecting the race so a badly-behaved executor that never checks
- * `signal.aborted` still can't run forever — "a test must not be allowed
- * to run forever" holds even for an executor that ignores cancellation.
+ * How long a cooperative executor gets to resolve on its own after its
+ * signal is aborted (timeout or cancellation) before this is escalated to
+ * a hard failure. Keeps `Promise.race` from immediately rejecting the
+ * moment `signal.aborted` flips — a cooperative executor (like
+ * `PlaceholderTestExecutor`) checks the signal between small steps and
+ * resolves gracefully well within this window; only a non-cooperative
+ * executor that ignores the signal entirely ever hits the hard deadline.
+ */
+const ABORT_GRACE_MS = 5_000;
+
+/**
+ * Runs the executor against `timeoutMs`, aborting its signal on either a
+ * hard timeout or an external cancellation (`cancelTestRun` flipping
+ * `test_runs.status` to `cancelled` while this job is already running —
+ * polled here since nothing else pushes that change into an in-flight
+ * job). A cooperative executor resolves gracefully once it sees the
+ * abort; a non-cooperative one still can't run forever, because the race
+ * against a hard deadline (`timeoutMs`/cancellation + `ABORT_GRACE_MS`)
+ * forces a rejection regardless.
  */
 async function executeWithTimeout(
+  admin: AdminClient,
   executor: TestExecutor,
   payload: TestRunJobPayload,
   configuration: Record<string, unknown>,
   timeoutMs: number,
 ): Promise<TestExecutionResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let cancelledExternally = false;
+
+  const timeoutTimer = setTimeout(() => controller.abort(), timeoutMs);
+  const pollTimer = setInterval(() => {
+    repository
+      .loadTestRun(admin, payload.organizationId, payload.testRunId)
+      .then((row) => {
+        if (row?.status === 'cancelled' && !controller.signal.aborted) {
+          cancelledExternally = true;
+          controller.abort();
+        }
+      })
+      .catch(() => {
+        // Best-effort: a transient read failure here shouldn't itself fail
+        // the run — the hard timeout below still applies regardless.
+      });
+  }, CANCELLATION_POLL_MS);
+
+  let hardDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
 
   try {
-    return await new Promise<TestExecutionResult>((resolve, reject) => {
-      controller.signal.addEventListener('abort', () => {
-        reject(new Error(`Test run timed out after ${timeoutMs}ms`));
-      });
-
-      executor
-        .execute({
-          testRunId: payload.testRunId,
-          organizationId: payload.organizationId,
-          projectId: payload.projectId,
-          environmentId: payload.environmentId,
-          type: payload.type,
-          configuration,
-          signal: controller.signal,
-        })
-        .then(resolve, reject);
+    const executionPromise = executor.execute({
+      testRunId: payload.testRunId,
+      organizationId: payload.organizationId,
+      projectId: payload.projectId,
+      environmentId: payload.environmentId,
+      type: payload.type,
+      configuration,
+      signal: controller.signal,
     });
+
+    const hardDeadline = new Promise<never>((_resolve, reject) => {
+      controller.signal.addEventListener('abort', () => {
+        hardDeadlineTimer = setTimeout(() => {
+          reject(
+            new Error(
+              cancelledExternally
+                ? 'Test run was cancelled, but the executor did not stop in time.'
+                : `Test run timed out after ${timeoutMs}ms`,
+            ),
+          );
+        }, ABORT_GRACE_MS);
+      });
+    });
+
+    return await Promise.race([executionPromise, hardDeadline]);
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timeoutTimer);
+    clearInterval(pollTimer);
+    if (hardDeadlineTimer) clearTimeout(hardDeadlineTimer);
   }
 }
 
@@ -116,7 +162,7 @@ export async function processTestRunJob(
   try {
     const started = await advanceToRunning(admin, run);
     const configuration = (run.configuration as Record<string, unknown> | null) ?? {};
-    const result = await executeWithTimeout(executor, payload, configuration, timeoutMs);
+    const result = await executeWithTimeout(admin, executor, payload, configuration, timeoutMs);
     await repository.writeTestResults(admin, payload.organizationId, payload.testRunId, result.results);
 
     const latest = await repository.loadTestRun(admin, payload.organizationId, payload.testRunId);

@@ -197,17 +197,23 @@ forever — the race's own rejection wins regardless.
   actually removes the BullMQ job (`removeQueuedTestRunJob`, only while
   its state is `waiting`/`delayed`) so it never gets a chance to run, and
   flips `test_runs.status` to `cancelled`.
-- **Already running:** `cancelTestRun` flips the database status, and
-  `PlaceholderTestExecutor` genuinely honors it — it checks
-  `context.signal` between each simulated-work step (25ms increments) and
-  returns a `failed` result as soon as it sees the run cancelled, rather
-  than running to completion regardless. `worker.ts` also re-checks the
-  row's status before writing a final `completed`/`failed`, so a
-  cancellation racing the very end of execution is never clobbered
-  either way. A future Playwright executor (Phase 7) gets the same
-  `AbortSignal` and should honor it the same way — but this isn't a
-  placeholder promise: Phase 6's own executor is proven to stop mid-run
-  (see the Cancellation test in the verification report).
+- **Already running:** `cancelTestRun` flips the database status. Nothing
+  else pushes that change into the already-running job directly, so
+  `worker.ts`'s `executeWithTimeout` polls `test_runs.status` every
+  `CANCELLATION_POLL_MS` (1s) while a job is executing and aborts the
+  same `AbortSignal` the executor receives as soon as it sees
+  `cancelled` — the same signal, and the same abort call, that the hard
+  timeout uses. `PlaceholderTestExecutor` checks that signal between each
+  simulated-work step (25ms increments) and returns a `failed` result
+  promptly once it's aborted, rather than running to completion
+  regardless. A non-cooperative executor that ignores the signal still
+  can't hang forever: `ABORT_GRACE_MS` (5s) after the abort, the race
+  forces a hard failure regardless of what the executor is doing.
+  `worker.ts` also re-checks the row's status before writing a final
+  `completed`/`failed`, so a cancellation racing the very end of
+  execution is never clobbered either way, and the idempotent no-op
+  check at the top of `processTestRunJob` means even a worst-case retry
+  of an already-cancelled run is a safe no-op, never a resurrection.
 
 ## Idempotency
 

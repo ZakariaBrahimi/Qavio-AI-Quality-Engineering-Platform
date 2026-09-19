@@ -1,7 +1,8 @@
 import type { Job } from 'bullmq';
 import type { TestExecutionResult, TestExecutor } from '@qavio/queue';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PlaceholderTestExecutor } from '../executors/placeholder-executor';
 import { processTestRunJob, type TestRunWorkerDeps } from '../worker';
 import type { AdminClient, TestRunRow } from '../repository';
 
@@ -60,6 +61,10 @@ function fakeExecutor(result: TestExecutionResult): TestExecutor {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('processTestRunJob', () => {
@@ -172,5 +177,37 @@ describe('processTestRunJob', () => {
     await processTestRunJob(deps(executor), PAYLOAD, fakeJob());
 
     expect(repository.transitionTestRun).not.toHaveBeenCalledWith({}, cancelled, expect.anything(), expect.anything());
+  });
+
+  it('aborts a real, still-cooperative executor via polling when the run is cancelled externally mid-execution, and completes without retrying', async () => {
+    vi.useFakeTimers();
+    try {
+      let currentStatus: TestRunRow['status'] = 'running';
+      const baseRun = testRunRow({ status: 'running', started_at: new Date().toISOString() });
+      vi.mocked(repository.loadTestRun).mockImplementation(async () => ({ ...baseRun, status: currentStatus }));
+
+      // Long enough that only the poll-triggered abort stops it, not its own duration.
+      const executor = new PlaceholderTestExecutor({ defaultDurationMs: 60_000 });
+      const promise = processTestRunJob(deps(executor), PAYLOAD, fakeJob());
+
+      // One poll tick while still "running" — a no-op.
+      await vi.advanceTimersByTimeAsync(1_000);
+      // The control plane cancels it externally (what apps/web's cancelTestRun does).
+      currentStatus = 'cancelled';
+      // The next poll tick sees it and aborts the executor's signal.
+      await vi.advanceTimersByTimeAsync(1_000);
+      // Give the cooperative executor's own step loop (25ms increments) a chance to notice and resolve.
+      await vi.advanceTimersByTimeAsync(200);
+
+      await promise;
+
+      expect(repository.transitionTestRun).not.toHaveBeenCalled();
+      expect(repository.upsertJobRecord).toHaveBeenLastCalledWith(
+        {},
+        expect.objectContaining({ status: 'completed' }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
