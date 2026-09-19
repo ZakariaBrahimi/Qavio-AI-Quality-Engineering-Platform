@@ -164,6 +164,9 @@ export async function processTestRunJob(
     const configuration = (run.configuration as Record<string, unknown> | null) ?? {};
     const result = await executeWithTimeout(admin, executor, payload, configuration, timeoutMs);
     await repository.writeTestResults(admin, payload.organizationId, payload.testRunId, result.results);
+    if (result.artifacts && result.artifacts.length > 0) {
+      await repository.writeArtifacts(admin, payload.organizationId, payload.projectId, payload.testRunId, result.artifacts);
+    }
 
     const latest = await repository.loadTestRun(admin, payload.organizationId, payload.testRunId);
     if (!latest || isTestRunFinished(latest.status)) {
@@ -188,6 +191,7 @@ export async function processTestRunJob(
     await repository.transitionTestRun(admin, latest, finalStatus, {
       finishedAt: new Date().toISOString(),
       errorMessage: finalStatus === 'failed' ? (result.errorMessage ?? 'Test run failed.') : null,
+      ...(result.summary !== undefined ? { summary: result.summary } : {}),
     });
 
     await repository.upsertJobRecord(admin, {

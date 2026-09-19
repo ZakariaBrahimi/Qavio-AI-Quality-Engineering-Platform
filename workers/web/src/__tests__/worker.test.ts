@@ -10,6 +10,7 @@ vi.mock('../repository', () => ({
   loadTestRun: vi.fn(),
   transitionTestRun: vi.fn(),
   writeTestResults: vi.fn(),
+  writeArtifacts: vi.fn(),
   upsertJobRecord: vi.fn(),
 }));
 
@@ -124,6 +125,51 @@ describe('processTestRunJob', () => {
       {},
       expect.objectContaining({ status: 'completed', jobId: 'run-1' }),
     );
+  });
+
+  it('persists artifacts and the run summary when the executor produces them', async () => {
+    const queued = testRunRow({ status: 'queued' });
+    const starting = testRunRow({ status: 'starting' });
+    const running = testRunRow({ status: 'running', started_at: new Date().toISOString() });
+
+    vi.mocked(repository.loadTestRun).mockResolvedValueOnce(queued).mockResolvedValueOnce(running);
+    vi.mocked(repository.transitionTestRun).mockResolvedValueOnce(starting).mockResolvedValueOnce(running);
+
+    const result: TestExecutionResult = {
+      status: 'completed',
+      results: [{ id: 'result-1', name: 'Home page', status: 'passed', durationMs: 340 }],
+      artifacts: [
+        { resultId: 'result-1', kind: 'screenshot', filename: 'result-1-home.png', contentType: 'image/png', data: Buffer.from('x') },
+      ],
+      summary: { pagesChecked: 1, pagesPassed: 1, pagesFailed: 0, cancelled: false },
+    };
+    const executor = fakeExecutor(result);
+
+    await processTestRunJob(deps(executor), PAYLOAD, fakeJob());
+
+    expect(repository.writeArtifacts).toHaveBeenCalledWith({}, 'org-1', 'project-1', 'run-1', result.artifacts);
+    expect(repository.transitionTestRun).toHaveBeenNthCalledWith(
+      3,
+      {},
+      running,
+      'completed',
+      expect.objectContaining({ summary: result.summary }),
+    );
+  });
+
+  it('does not call writeArtifacts when the executor produces no artifacts', async () => {
+    const queued = testRunRow({ status: 'queued' });
+    const starting = testRunRow({ status: 'starting' });
+    const running = testRunRow({ status: 'running', started_at: new Date().toISOString() });
+
+    vi.mocked(repository.loadTestRun).mockResolvedValueOnce(queued).mockResolvedValueOnce(running);
+    vi.mocked(repository.transitionTestRun).mockResolvedValueOnce(starting).mockResolvedValueOnce(running);
+
+    const executor = fakeExecutor({ status: 'completed', results: [] });
+
+    await processTestRunJob(deps(executor), PAYLOAD, fakeJob());
+
+    expect(repository.writeArtifacts).not.toHaveBeenCalled();
   });
 
   it('marks the run failed on the final attempt when the executor throws', async () => {

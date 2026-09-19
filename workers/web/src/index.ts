@@ -2,14 +2,38 @@ import { createEnv, workerEnvSchema } from '@qavio/config';
 import { createSupabaseAdminClient } from '@qavio/database';
 
 import { PlaceholderTestExecutor } from './executors/placeholder-executor';
+import { PlaywrightTestExecutor } from './executors/playwright-executor';
+import { RoutingTestExecutor } from './executors/routing-executor';
 import { logger } from './logger';
+import * as repository from './repository';
 import { createTestRunWorker } from './worker';
 
 const env = createEnv(workerEnvSchema);
 
 const admin = createSupabaseAdminClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
-const executor = new PlaceholderTestExecutor();
+/** Loaded fresh per run, never trusted from the queue payload — see repository.loadExecutionTarget. */
+async function resolvePlaywrightTarget(context: { organizationId: string; projectId: string; environmentId: string }) {
+  const target = await repository.loadExecutionTarget(admin, context.organizationId, context.projectId, context.environmentId);
+  return target ? { baseUrl: target.baseUrl } : null;
+}
+
+const playwrightExecutor = new PlaywrightTestExecutor({
+  resolveTarget: resolvePlaywrightTarget,
+  onProgress: (context, message) => repository.updateProgress(admin, context.organizationId, context.testRunId, message),
+});
+
+// Phase 7's real browser-based engine only applies to `web` projects — mobile/api projects
+// keep running the deterministic placeholder (see docs/test-run-engine.md's "NO OTHER QA
+// ENGINES" section).
+const executor = new RoutingTestExecutor({
+  loadPlatform: async (context) => {
+    const target = await repository.loadExecutionTarget(admin, context.organizationId, context.projectId, context.environmentId);
+    return target?.projectPlatform ?? null;
+  },
+  webExecutor: playwrightExecutor,
+  fallbackExecutor: new PlaceholderTestExecutor(),
+});
 
 const worker = createTestRunWorker({
   redisUrl: env.REDIS_URL,

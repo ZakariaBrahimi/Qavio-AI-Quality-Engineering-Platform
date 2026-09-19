@@ -50,6 +50,8 @@ export interface PageCheckOutcome {
   durationMs: number;
   httpStatus: number | null;
   title: string | null;
+  /** The page's actual URL after navigation (post-redirect) — `null` if navigation itself failed. Relative links found on the page must resolve against this, not the originally-requested URL, since a redirect can land somewhere with a different path. */
+  finalUrl: string | null;
   /** Same-origin filtering, normalization and dedup are the crawler's job (see crawler/discover-links.ts) — this is just the raw `href` attribute values found on the page. */
   discoveredHrefs: string[];
   evidence: PageCheckEvidence;
@@ -102,6 +104,7 @@ export async function runPageCheck(page: Page, url: string, options: PageCheckOp
   try {
     let httpStatus: number | null = null;
     let title: string | null = null;
+    let finalUrl: string | null = null;
     let discoveredHrefs: string[] = [];
     let failureReason: string | null = null;
     /** Distinguishes "navigation completed, but the response was 4xx/5xx" (the page rendered — safe to inspect/screenshot) from "goto itself threw" (no page ever loaded — Chromium can hang for tens of seconds if a screenshot is attempted against a still-navigating page, see run-page-check.test.ts). */
@@ -119,6 +122,7 @@ export async function runPageCheck(page: Page, url: string, options: PageCheckOp
     }
 
     if (navigated) {
+      finalUrl = page.url();
       try {
         title = await page.title();
       } catch {
@@ -162,6 +166,7 @@ export async function runPageCheck(page: Page, url: string, options: PageCheckOp
       durationMs: Date.now() - startedAt,
       httpStatus,
       title,
+      finalUrl,
       discoveredHrefs,
       evidence,
       artifacts,
