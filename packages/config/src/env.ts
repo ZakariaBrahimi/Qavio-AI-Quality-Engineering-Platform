@@ -69,4 +69,14 @@ export const workerEnvSchema = {
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   /** Hard ceiling on one Test Run's execution time — see docs/test-run-engine.md's Timeouts section. A test must not be allowed to run forever. */
   TEST_RUN_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
+  /**
+   * Comma-separated `hostname` or `hostname:port` entries allowed to bypass
+   * Phase 7's SSRF protection (see workers/web's target-validation.ts) —
+   * exists solely so the Playwright QA engine can be exercised locally
+   * against `apps/qa-fixture` on localhost, which every real deployment
+   * correctly blocks as a private/loopback address. Leave unset in every
+   * deployed environment; this is a local-development escape hatch, not a
+   * feature.
+   */
+  PLAYWRIGHT_LOCAL_TEST_TARGET_ALLOWLIST: z.string().optional().default(''),
 };

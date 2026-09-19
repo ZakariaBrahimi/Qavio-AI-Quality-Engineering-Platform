@@ -112,6 +112,22 @@ function isBlockedIp(ip: string, family: number): boolean {
   return family === 4 ? isBlockedIPv4(ip) : isBlockedIPv6(ip);
 }
 
+export interface ValidateTargetUrlOptions {
+  /**
+   * Exact `hostname` or `hostname:port` entries allowed to bypass the
+   * private/loopback IP-range and literal-hostname checks below —
+   * protocol and malformed-URL checks still apply regardless. This
+   * exists solely so Phase 7 can be exercised end to end against
+   * `apps/qa-fixture` running on localhost (every reachable address in a
+   * local/dev environment is, correctly, inside a blocked range — see
+   * docs/test-run-engine.md's "Target URL security" section). Populated
+   * only from `PLAYWRIGHT_LOCAL_TEST_TARGET_ALLOWLIST`, which is unset in
+   * every deployed environment; never derived from anything a user
+   * controls (a run's `configuration`, an environment's `base_url`, …).
+   */
+  allowedTestHosts?: ReadonlySet<string>;
+}
+
 /**
  * Validates one URL: well-formed, http(s) only, hostname not a literal
  * blocked name, and — the part a hostname-string check alone can't catch
@@ -119,7 +135,7 @@ function isBlockedIp(ip: string, family: number): boolean {
  * blocked range. Resolves via DNS, so this also naturally rejects a
  * hostname that fails to resolve at all.
  */
-export async function validateTargetUrl(rawUrl: string): Promise<UrlValidationResult> {
+export async function validateTargetUrl(rawUrl: string, options: ValidateTargetUrlOptions = {}): Promise<UrlValidationResult> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -132,6 +148,11 @@ export async function validateTargetUrl(rawUrl: string): Promise<UrlValidationRe
   }
 
   const hostname = url.hostname.toLowerCase();
+
+  if (options.allowedTestHosts?.has(url.port ? `${hostname}:${url.port}` : hostname)) {
+    return { allowed: true, url };
+  }
+
   if (BLOCKED_HOSTNAMES.has(hostname) || BLOCKED_HOSTNAME_SUFFIXES.some((suffix) => hostname.endsWith(suffix))) {
     return { allowed: false, reason: `"${hostname}" is not an allowed target.` };
   }

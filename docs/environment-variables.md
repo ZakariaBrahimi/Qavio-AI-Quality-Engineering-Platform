@@ -26,6 +26,7 @@ pattern).
 | `ANTHROPIC_API_KEY`                                 | ❌               | ✅ (future `workers/ai`) |         | AI provider credential                           |
 | `WORKER_CONCURRENCY`                                | ❌               |                          | ✅      | BullMQ worker concurrency (default `2`)          |
 | `TEST_RUN_TIMEOUT_MS`                               | ❌               |                          | ✅      | Hard ceiling on one run's execution (default `300000`) |
+| `PLAYWRIGHT_LOCAL_TEST_TARGET_ALLOWLIST`            | ❌               |                          | ✅      | Local-dev-only SSRF allowlist for `apps/qa-fixture` — see below. Leave empty everywhere else. |
 | `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET`             | ❌               | ✅ (future)              |         | Jira OAuth app credentials                       |
 | `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` | ❌               | ✅ (future)              |         | GitHub OAuth app credentials                     |
 
@@ -37,6 +38,23 @@ management, …) fail validation for infrastructure they don't use:
 - `queueEnvSchema` — apps/web's BullMQ *producer* only
   (`apps/web/src/lib/queue.ts`, called from `createTestRun`).
 - `workerEnvSchema` — every `workers/*` process (the BullMQ *consumer*).
+
+### `PLAYWRIGHT_LOCAL_TEST_TARGET_ALLOWLIST`
+
+Phase 7's Playwright QA engine validates an environment's `base_url`
+against an SSRF blocklist before ever launching a browser at it (see
+`workers/web/src/security/target-validation.ts`), which correctly rejects
+every address reachable on your own machine — `localhost`, `127.0.0.1`, a
+LAN IP. That makes it impossible to run the engine against
+`apps/qa-fixture` locally without an explicit exception.
+
+This variable is that exception: a comma-separated list of exact
+`hostname:port` entries (e.g. `127.0.0.1:4310`) allowed to bypass the
+private/loopback check — nothing else about the check changes, and it's
+read only once at worker startup from this env var, never from a run's
+`configuration` or an environment's `base_url` itself. Leave it unset (the
+default) in every deployed environment; set it only in your local `.env`
+while running the worker against `apps/qa-fixture`.
 
 ## Rules
 

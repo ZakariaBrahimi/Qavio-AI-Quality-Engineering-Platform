@@ -18,9 +18,18 @@ async function resolvePlaywrightTarget(context: { organizationId: string; projec
   return target ? { baseUrl: target.baseUrl } : null;
 }
 
+// Empty (the default) in every deployed environment — see
+// PLAYWRIGHT_LOCAL_TEST_TARGET_ALLOWLIST's own doc comment in packages/config/src/env.ts.
+const allowedTestHosts = new Set(
+  env.PLAYWRIGHT_LOCAL_TEST_TARGET_ALLOWLIST.split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0),
+);
+
 const playwrightExecutor = new PlaywrightTestExecutor({
   resolveTarget: resolvePlaywrightTarget,
   onProgress: (context, message) => repository.updateProgress(admin, context.organizationId, context.testRunId, message),
+  allowedTestHosts,
 });
 
 // Phase 7's real browser-based engine only applies to `web` projects — mobile/api projects

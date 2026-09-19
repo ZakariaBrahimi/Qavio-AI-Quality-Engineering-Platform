@@ -179,3 +179,31 @@ describe('isSameOrigin', () => {
     expect(isSameOrigin(redirectTarget, allowed)).toBe(false);
   });
 });
+
+describe('validateTargetUrl — allowedTestHosts', () => {
+  it('allows a loopback address explicitly present in allowedTestHosts', async () => {
+    const result = await validateTargetUrl('http://127.0.0.1:4310/', { allowedTestHosts: new Set(['127.0.0.1:4310']) });
+    expect(result.allowed).toBe(true);
+    expect(mockLookup).not.toHaveBeenCalled();
+  });
+
+  it('allows a literal "localhost" hostname explicitly present in allowedTestHosts', async () => {
+    const result = await validateTargetUrl('http://localhost:4310/', { allowedTestHosts: new Set(['localhost:4310']) });
+    expect(result.allowed).toBe(true);
+  });
+
+  it('still blocks a loopback address on a different port not in allowedTestHosts', async () => {
+    const result = await validateTargetUrl('http://127.0.0.1:9999/', { allowedTestHosts: new Set(['127.0.0.1:4310']) });
+    expect(result.allowed).toBe(false);
+  });
+
+  it('still blocks a loopback address when allowedTestHosts is not provided at all', async () => {
+    const result = await validateTargetUrl('http://127.0.0.1:4310/');
+    expect(result.allowed).toBe(false);
+  });
+
+  it('still rejects an unsupported protocol even when the host is allowlisted', async () => {
+    const result = await validateTargetUrl('ftp://127.0.0.1:4310/', { allowedTestHosts: new Set(['127.0.0.1:4310']) });
+    expect(result.allowed).toBe(false);
+  });
+});

@@ -26,6 +26,8 @@ export interface PlaywrightTestExecutorDeps {
   onProgress(context: TestExecutionContext, message: string): Promise<void>;
   /** Server-side only. Defaults to `true`; a developer can flip it locally to watch the crawl run. */
   headless?: boolean;
+  /** Populated only from `PLAYWRIGHT_LOCAL_TEST_TARGET_ALLOWLIST` — see `ValidateTargetUrlOptions.allowedTestHosts`. Unset (and therefore empty) in every deployed environment. */
+  allowedTestHosts?: ReadonlySet<string>;
 }
 
 export interface CrawlLimits {
@@ -110,7 +112,7 @@ export class PlaywrightTestExecutor implements TestExecutor {
       };
     }
 
-    const validated = await validateTargetUrl(target.baseUrl);
+    const validated = await validateTargetUrl(target.baseUrl, { allowedTestHosts: this.deps.allowedTestHosts });
     if (!validated.allowed) {
       return { status: 'failed', errorMessage: `Target URL is not allowed: ${validated.reason}`, results: [] };
     }

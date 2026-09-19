@@ -44,7 +44,7 @@ TypeScript · Next.js (App Router) · React · Tailwind CSS · Radix UI
 ## Repository structure
 
 ```
-apps/        web (control plane UI) · api (internal service)
+apps/        web (control plane UI) · api (internal service) · qa-fixture (local-only test app for the QA engine)
 workers/     web (Playwright + BullMQ, implemented) · ai/visual/mobile/security (placeholders)
 packages/    ui · types · database · ai · testing · integrations · config
 supabase/    migrations · functions · seed
@@ -75,6 +75,9 @@ Details, including running Supabase and Redis locally: `docs/setup.md`.
 - [`docs/test-run-engine.md`](docs/test-run-engine.md) — the real Test Run
   job pipeline: BullMQ queue, worker orchestration, state machine, retries,
   concurrency, timeouts, cancellation, idempotency
+- [`docs/playwright-qa-engine.md`](docs/playwright-qa-engine.md) — the real
+  browser-based QA engine: crawling, SSRF protection, functional checks,
+  artifacts, local development against `apps/qa-fixture`
 - [`docs/database.md`](docs/database.md) — schema, multi-tenant model,
   roles, RLS, credentials/secrets, audit logging
 - [`docs/authentication.md`](docs/authentication.md) — Supabase Auth,

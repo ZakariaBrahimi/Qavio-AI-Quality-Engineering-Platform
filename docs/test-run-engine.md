@@ -291,3 +291,12 @@ mobile testing, security scanning, AI code fixes — all Phase 7+.
 `PlaceholderTestExecutor` proves the pipeline end-to-end with one honest,
 deterministic, configurable-duration simulated check; Phase 7 replaces
 just that class, not the pipeline around it.
+
+**Phase 7 has since landed** — a real Playwright-based engine
+(`PlaywrightTestExecutor`) now runs `web`-platform projects through this
+same pipeline unchanged; `mobile`/`api` projects still get
+`PlaceholderTestExecutor` (see `RoutingTestExecutor`). See
+`docs/playwright-qa-engine.md` for that engine's own architecture,
+security model, and local development workflow. AI test generation, AI
+failure analysis, visual comparison, mobile testing, security scanning,
+and AI code fixes remain out of scope.
